@@ -36,7 +36,7 @@
             uniform vec2 u_mouse;
             uniform sampler2D u_buffer;
 
-            #define COLOR vec4(0.2, 0.4, 1, 1)
+            #define COLOR vec4(1, 1, 1, 1)
             #define BACKGROUND vec4(0, 0, 0, 1)
 
             int isColored(int x, int y) {
@@ -47,9 +47,10 @@
             }
 
             void main() {
+
                 vec2 distance = gl_FragCoord.xy - u_mouse;
                        
-                float radius = u_resolution.y;
+                float radius = u_resolution.y / 3.;
 
                 if( dot(distance, distance) < radius ){
                     gl_FragColor = COLOR;
@@ -68,17 +69,17 @@
                     //alive
                     if (isColored(0, 0) == 1) {
                         if (neighborhood < 2 || neighborhood > 3)
-                            gl_FragColor = BACKGROUND;
+                            gl_FragColor = texture2D(u_buffer, gl_FragCoord.xy / u_resolution) - vec4(0.008, 0.05, 0.02, 0);
                         else
                             gl_FragColor = COLOR;
                     }
 
                     //dead
                     else {
-                        if (neighborhood == 3 || neighborhood == 7)
+                        if (neighborhood == 3)
                            gl_FragColor = COLOR;
                         else
-                            gl_FragColor = BACKGROUND;
+                            gl_FragColor = texture2D(u_buffer, gl_FragCoord.xy / u_resolution) - vec4(0.008, 0.05, 0.02, 0);
                     }
                 }
             }
@@ -88,11 +89,12 @@
             precision mediump float;
 
             uniform vec2 u_resolution;
-            uniform sampler2D u_buffer;
+            uniform vec2 u_mouse;
+            uniform sampler2D u_screenBuffer;
 
             void main() {
                 vec2 uv = gl_FragCoord.xy / u_resolution;
-                gl_FragColor = texture2D(u_buffer, uv);
+                gl_FragColor = texture2D(u_screenBuffer, uv);
 
             }
         </script>
@@ -102,7 +104,10 @@
         $(document).ready(main);
 
         function main(){
-            var gl, golBuffer;
+            var gl;
+            var frontBuffer, backBuffer;
+            var mainProgram, screenProgram;
+            mousePos = {}
 
             init();
             animate();
@@ -112,11 +117,14 @@
             var canvas =  $('canvas');
             gl = canvas[0].getContext('webgl');
 
-            var program = createProgram('#vertexShader', '#fragmentShader');
-            gl.useProgram(program);
+            frontBuffer = createBuffer();
+            backBuffer = createBuffer();
+
+            // initialize main program
+            mainProgram = createProgram('#vertexShader', '#fragmentShader');
             
             // create a plane which fills the screen
-            var locVertexCoords = gl.getAttribLocation(program, 'a_position');
+            var locVertexCoords = gl.getAttribLocation(mainProgram, 'a_position');
             gl.enableVertexAttribArray(locVertexCoords);
             gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
             gl.vertexAttribPointer(locVertexCoords, 2, gl.FLOAT, false, 0, 0);
@@ -126,10 +134,16 @@
                 1, 1,
                 1, 0]), gl.STATIC_DRAW);
 
-            // uniforms
-            var locResolution = gl.getUniformLocation(program, 'u_resolution');
-            var locMouse = gl.getUniformLocation(program, 'u_mouse');
-            var locTexture = gl.getUniformLocation(program, 'u_buffer');
+            mainProgram.loc['resolution'] = gl.getUniformLocation(mainProgram, 'u_resolution');
+            mainProgram.loc['mouse'] = gl.getUniformLocation(mainProgram, 'u_mouse');
+            mainProgram.loc['texture'] = gl.getUniformLocation(mainProgram, 'u_buffer');
+
+            // initialize screen program
+            screenProgram = createProgram('#vertexShader', '#screenShader');
+
+            screenProgram.loc['resolution'] = gl.getUniformLocation(screenProgram, 'u_resolution');
+            screenProgram.loc['mouse'] = gl.getUniformLocation(screenProgram, 'u_mouse');
+            screenProgram.loc['texture'] = gl.getUniformLocation(screenProgram, 'u_screenBuffer');
 
 
             // event listeners
@@ -138,40 +152,74 @@
                 canvas.prop('width', $(window).width());
 
                 gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
-                gl.uniform2f(locResolution, gl.drawingBufferWidth, gl.drawingBufferHeight);
+                
+                frontBuffer = createBuffer();
+                backBuffer = createBuffer();
             });
             $(window).trigger('resize');
 
+
             canvas.mousemove(function(event) {
-                gl.uniform2f(locMouse, event.pageX, canvas.height() - event.pageY);
+                mousePos.x = event.pageX;
+                mousePos.y = canvas.height() - event.pageY;
             });
 
-            gl.uniform1i(locTexture, 0);
+        }
 
+        function drawScene(){
+
+            gl.clear(gl.COLOR_BUFFER_BIT);
+            // front buffer
+            gl.useProgram(mainProgram);
+            gl.bindFramebuffer(gl.FRAMEBUFFER, frontBuffer);
+            
+            gl.activeTexture(gl.TEXTURE0);
+            gl.bindTexture(gl.TEXTURE_2D, backBuffer.texture);
+
+            gl.uniform2f(mainProgram.loc['mouse'], mousePos.x, mousePos.y);
+            gl.uniform2f(mainProgram.loc['resolution'], gl.drawingBufferWidth, gl.drawingBufferHeight);
+            gl.uniform1i(mainProgram.loc['texture'], 0);
+
+            gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
+
+            // screen buffer
+            gl.useProgram(screenProgram);
+            gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+            gl.activeTexture(gl.TEXTURE1);
+            gl.bindTexture(gl.TEXTURE_2D, frontBuffer.texture);
+
+            gl.uniform2f(screenProgram.loc['mouse'], mousePos.x, mousePos.y);
+            gl.uniform2f(screenProgram.loc['resolution'], gl.drawingBufferWidth, gl.drawingBufferHeight);
+            gl.uniform1i(screenProgram.loc['texture'], 1);
+
+
+            gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
+
+            // swap buffers
+            var tmp = frontBuffer;
+            frontBuffer = backBuffer;
+            backBuffer = tmp;
+        }
+
+        function createBuffer(){
             var texture = gl.createTexture();
             gl.bindTexture(gl.TEXTURE_2D, texture);
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.drawingBufferWidth, gl.drawingBufferHeight, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, $(window).width(), $(window).height(), 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
 
-            golBuffer = gl.createFramebuffer();
-            gl.bindFramebuffer(gl.FRAMEBUFFER, golBuffer);
+            var buffer = gl.createFramebuffer();
+            gl.bindFramebuffer(gl.FRAMEBUFFER, buffer);
             gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
             gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
+            buffer.texture = texture;
 
-        }
+            return buffer;
 
-        function drawScene(){
-            gl.clear(gl.COLOR_BUFFER_BIT);
-
-            gl.bindFramebuffer(gl.FRAMEBUFFER, golBuffer);
-            gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
-
-            gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-            gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
         }
 
         function createProgram(vertexShaderID, fragmentShaderID){
@@ -187,6 +235,8 @@
             gl.attachShader(program, vertexShader);
             gl.attachShader(program, fragmentShader);
             gl.linkProgram(program);
+
+            program.loc = [];
 
             return program;
         }
