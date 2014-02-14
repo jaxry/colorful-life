@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html class='no-js'>
+    <head>
+        <meta charset='utf-8'>
+        <meta http-equiv='X-UA-Compatible' content='IE=edge,chrome=1'>
+        <title>Game of Life</title>
+        <meta name='description' content=''>
+        <meta name='viewport' content='width=device-width'>
+
+        <link rel='stylesheet' href='css/normalize.min.css'>
+        <link rel='stylesheet' href='css/main.css'>
+
+        <script src='js/vendor/modernizr-2.6.2.min.js'></script>
+        <script src='js/vendor/jquery-2.0.3.js'></script>
+        <script src='js/vendor/gl-matrix.js'></script>
+    </head>
+    <body>
+
+        <canvas id='canvas'></canvas>
+
+        <script id='vertexShader' type='x-shader/x-vertex'>
+            attribute vec2 a_position;
+
+
+            void main() {
+                vec2 clipSpace = a_position * 2.0 - 1.0;
+               
+                gl_Position = vec4(clipSpace, 0, 1);
+            }
+        </script>
+        
+        <script id='fragmentShader' type='x-shader/x-fragment'>
+            precision mediump float;
+
+            uniform vec2 u_resolution;
+            uniform vec2 u_mouse;
+            uniform sampler2D u_buffer;
+
+            #define COLOR vec4(0.2, 0.4, 1, 1)
+            #define BACKGROUND vec4(0, 0, 0, 1)
+
+            int isColored(int x, int y) {
+                if (texture2D(u_buffer, (gl_FragCoord.xy + vec2(x, y)) / u_resolution) == COLOR) 
+                    return 1;
+                else 
+                    return 0;
+            }
+
+            void main() {
+                vec2 distance = gl_FragCoord.xy - u_mouse;
+                       
+                float radius = u_resolution.y;
+
+                if( dot(distance, distance) < radius ){
+                    gl_FragColor = COLOR;
+                }
+
+                else {
+                    int neighborhood = isColored(0, 1)
+                                     + isColored(1, 1)
+                                     + isColored(1, 0)
+                                     + isColored(1, -1)
+                                     + isColored(0, -1)
+                                     + isColored(-1, -1)
+                                     + isColored(-1, 0)
+                                     + isColored(-1, 1);
+
+                    //alive
+                    if (isColored(0, 0) == 1) {
+                        if (neighborhood < 2 || neighborhood > 3)
+                            gl_FragColor = BACKGROUND;
+                        else
+                            gl_FragColor = COLOR;
+                    }
+
+                    //dead
+                    else {
+                        if (neighborhood == 3 || neighborhood == 7)
+                           gl_FragColor = COLOR;
+                        else
+                            gl_FragColor = BACKGROUND;
+                    }
+                }
+            }
+        </script>
+
+        <script id='screenShader' type='x-shader/x-fragment'>
+            precision mediump float;
+
+            uniform vec2 u_resolution;
+            uniform sampler2D u_buffer;
+
+            void main() {
+                vec2 uv = gl_FragCoord.xy / u_resolution;
+                gl_FragColor = texture2D(u_buffer, uv);
+
+            }
+        </script>
+
+        <script>
+
+        $(document).ready(main);
+
+        function main(){
+            var gl, golBuffer;
+
+            init();
+            animate();
+        }
+
+        function init(){
+            var canvas =  $('canvas');
+            gl = canvas[0].getContext('webgl');
+
+            var program = createProgram('#vertexShader', '#fragmentShader');
+            gl.useProgram(program);
+            
+            // create a plane which fills the screen
+            var locVertexCoords = gl.getAttribLocation(program, 'a_position');
+            gl.enableVertexAttribArray(locVertexCoords);
+            gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+            gl.vertexAttribPointer(locVertexCoords, 2, gl.FLOAT, false, 0, 0);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+                0, 0,
+                0, 1,
+                1, 1,
+                1, 0]), gl.STATIC_DRAW);
+
+            // uniforms
+            var locResolution = gl.getUniformLocation(program, 'u_resolution');
+            var locMouse = gl.getUniformLocation(program, 'u_mouse');
+            var locTexture = gl.getUniformLocation(program, 'u_buffer');
+
+
+            // event listeners
+            $(window).resize(function(){
+                canvas.prop('height', $(window).height());
+                canvas.prop('width', $(window).width());
+
+                gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
+                gl.uniform2f(locResolution, gl.drawingBufferWidth, gl.drawingBufferHeight);
+            });
+            $(window).trigger('resize');
+
+            canvas.mousemove(function(event) {
+                gl.uniform2f(locMouse, event.pageX, canvas.height() - event.pageY);
+            });
+
+            gl.uniform1i(locTexture, 0);
+
+            var texture = gl.createTexture();
+            gl.bindTexture(gl.TEXTURE_2D, texture);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.drawingBufferWidth, gl.drawingBufferHeight, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+
+            golBuffer = gl.createFramebuffer();
+            gl.bindFramebuffer(gl.FRAMEBUFFER, golBuffer);
+            gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
+            gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+
+        }
+
+        function drawScene(){
+            gl.clear(gl.COLOR_BUFFER_BIT);
+
+            gl.bindFramebuffer(gl.FRAMEBUFFER, golBuffer);
+            gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
+
+            gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+            gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
+        }
+
+        function createProgram(vertexShaderID, fragmentShaderID){
+            var vertexShader = gl.createShader(gl.VERTEX_SHADER);
+            gl.shaderSource(vertexShader, $(vertexShaderID).text());
+            gl.compileShader(vertexShader);
+
+            var fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+            gl.shaderSource(fragmentShader, $(fragmentShaderID).text());
+            gl.compileShader(fragmentShader);
+
+            var program = gl.createProgram();
+            gl.attachShader(program, vertexShader);
+            gl.attachShader(program, fragmentShader);
+            gl.linkProgram(program);
+
+            return program;
+        }
+
+        function animate() {
+            drawScene();
+            window.requestAnimationFrame(animate);
+        }
+
+        </script>
+    </body>
+</html>
