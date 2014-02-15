@@ -3,7 +3,7 @@
     <head>
         <meta charset='utf-8'>
         <meta http-equiv='X-UA-Compatible' content='IE=edge,chrome=1'>
-        <title>Game of Life</title>
+        <title>Life</title>
         <meta name='description' content=''>
         <meta name='viewport' content='width=device-width'>
 
@@ -34,10 +34,12 @@
 
             uniform vec2 u_resolution;
             uniform vec2 u_mouse;
+            uniform bool u_mouseDown;
             uniform sampler2D u_buffer;
 
             #define COLOR vec4(1, 1, 1, 1)
-            #define BACKGROUND vec4(0, 0, 0, 1)
+            #define BACKGROUND vec4(1, 1, 1, 1)
+            #define DECAY vec4(0.02, 0.005, 0.01, 0)
 
             int isColored(int x, int y) {
                 if (texture2D(u_buffer, (gl_FragCoord.xy + vec2(x, y)) / u_resolution) == COLOR) 
@@ -52,7 +54,7 @@
                        
                 float radius = u_resolution.y / 3.;
 
-                if( dot(distance, distance) < radius ){
+                if( u_mouseDown && dot(distance, distance) < radius ){
                     gl_FragColor = COLOR;
                 }
 
@@ -69,17 +71,17 @@
                     //alive
                     if (isColored(0, 0) == 1) {
                         if (neighborhood < 2 || neighborhood > 3)
-                            gl_FragColor = texture2D(u_buffer, gl_FragCoord.xy / u_resolution) - vec4(0.008, 0.05, 0.02, 0);
+                            gl_FragColor = texture2D(u_buffer, gl_FragCoord.xy / u_resolution) - DECAY;
                         else
                             gl_FragColor = COLOR;
                     }
 
                     //dead
                     else {
-                        if (neighborhood == 3)
+                        if (neighborhood == 3 || neighborhood == 7)
                            gl_FragColor = COLOR;
                         else
-                            gl_FragColor = texture2D(u_buffer, gl_FragCoord.xy / u_resolution) - vec4(0.008, 0.05, 0.02, 0);
+                            gl_FragColor = texture2D(u_buffer, gl_FragCoord.xy / u_resolution) - DECAY;
                     }
                 }
             }
@@ -107,7 +109,11 @@
             var gl;
             var frontBuffer, backBuffer;
             var mainProgram, screenProgram;
-            mousePos = {}
+            mousePos = {
+                x: 0,
+                y: 0,
+                down: false
+            }
 
             init();
             animate();
@@ -116,9 +122,6 @@
         function init(){
             var canvas =  $('canvas');
             gl = canvas[0].getContext('webgl');
-
-            frontBuffer = createBuffer();
-            backBuffer = createBuffer();
 
             // initialize main program
             mainProgram = createProgram('#vertexShader', '#fragmentShader');
@@ -136,6 +139,7 @@
 
             mainProgram.loc['resolution'] = gl.getUniformLocation(mainProgram, 'u_resolution');
             mainProgram.loc['mouse'] = gl.getUniformLocation(mainProgram, 'u_mouse');
+            mainProgram.loc['mouseDown'] = gl.getUniformLocation(mainProgram, 'u_mouseDown');
             mainProgram.loc['texture'] = gl.getUniformLocation(mainProgram, 'u_buffer');
 
             // initialize screen program
@@ -164,11 +168,16 @@
                 mousePos.y = canvas.height() - event.pageY;
             });
 
+            canvas.mousedown(function() {
+                mousePos.down = true;
+            });
+
+            canvas.mouseup(function() {
+                mousePos.down = false;
+            });
         }
 
         function drawScene(){
-
-            gl.clear(gl.COLOR_BUFFER_BIT);
             // front buffer
             gl.useProgram(mainProgram);
             gl.bindFramebuffer(gl.FRAMEBUFFER, frontBuffer);
@@ -177,6 +186,7 @@
             gl.bindTexture(gl.TEXTURE_2D, backBuffer.texture);
 
             gl.uniform2f(mainProgram.loc['mouse'], mousePos.x, mousePos.y);
+            gl.uniform1i(mainProgram.loc['mouseDown'], mousePos.down);
             gl.uniform2f(mainProgram.loc['resolution'], gl.drawingBufferWidth, gl.drawingBufferHeight);
             gl.uniform1i(mainProgram.loc['texture'], 0);
 
@@ -193,13 +203,13 @@
             gl.uniform2f(screenProgram.loc['resolution'], gl.drawingBufferWidth, gl.drawingBufferHeight);
             gl.uniform1i(screenProgram.loc['texture'], 1);
 
-
             gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
 
             // swap buffers
             var tmp = frontBuffer;
             frontBuffer = backBuffer;
             backBuffer = tmp;
+
         }
 
         function createBuffer(){
@@ -217,6 +227,9 @@
             gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
             buffer.texture = texture;
+
+            gl.bindTexture(gl.TEXTURE_2D, null);
+            gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
             return buffer;
 
