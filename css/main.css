@@ -63,14 +63,13 @@ textarea {
 
 body {
     background-color: #000000;
-    margin: 0px;
     overflow: hidden;
+    margin: 0;
+    padding: 0;
 }
 
 #canvas {
-    height: 100%;
-    width: 100%;
-    margin: 0;
+
 }
 
 

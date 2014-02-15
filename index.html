@@ -12,7 +12,7 @@
 
         <script src='js/vendor/modernizr-2.6.2.min.js'></script>
         <script src='js/vendor/jquery-2.0.3.js'></script>
-        <script src='js/vendor/gl-matrix.js'></script>
+        <!-- <script src='js/vendor/gl-matrix.js'></script> -->
     </head>
     <body>
 
@@ -41,8 +41,12 @@
             #define BACKGROUND vec4(1, 1, 1, 1)
             #define DECAY vec4(0.02, 0.005, 0.01, 0)
 
+            float rand(vec2 co){
+                 return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
+            }
+
             int isColored(int x, int y) {
-                if (texture2D(u_buffer, (gl_FragCoord.xy + vec2(x, y)) / u_resolution) == COLOR) 
+                if (texture2D(u_buffer, ( mod(gl_FragCoord.xy + vec2(x, y), u_resolution) ) / u_resolution) == COLOR) 
                     return 1;
                 else 
                     return 0;
@@ -54,8 +58,8 @@
                        
                 float radius = u_resolution.y / 3.;
 
-                if( u_mouseDown && dot(distance, distance) < radius ){
-                    gl_FragColor = COLOR;
+                if( u_mouseDown && dot(distance, distance) < radius){
+                    gl_FragColor = COLOR * floor(rand(gl_FragCoord.xy) * 2.);
                 }
 
                 else {
@@ -109,11 +113,19 @@
             var gl;
             var frontBuffer, backBuffer;
             var mainProgram, screenProgram;
+            
+            screenSize = {
+                calcSize: function(){
+                    this.width = $(window).width();
+                    this.height = $(window).height() - 5;
+                }
+            };
+            
             mousePos = {
                 x: 0,
                 y: 0,
                 down: false
-            }
+            };
 
             init();
             animate();
@@ -152,8 +164,10 @@
 
             // event listeners
             $(window).resize(function(){
-                canvas.prop('height', $(window).height());
-                canvas.prop('width', $(window).width());
+                screenSize.calcSize();
+
+                canvas.prop('width', screenSize.width);
+                canvas.prop('height', screenSize.height);
 
                 gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
                 
@@ -219,7 +233,7 @@
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, $(window).width(), $(window).height(), 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, screenSize.width, screenSize.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
 
             var buffer = gl.createFramebuffer();
             gl.bindFramebuffer(gl.FRAMEBUFFER, buffer);
