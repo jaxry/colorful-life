@@ -36,6 +36,7 @@
             uniform vec2 u_resolution;
             uniform vec2 u_mouse;
             uniform bool u_mouseDown;
+            uniform vec4 u_surface;
             uniform sampler2D u_buffer;
 
             #define COLOR vec4(1, 1, 1, 1)
@@ -55,6 +56,8 @@
 
             void main() {
 
+                vec2 fragNormal = gl_FragCoord.xy / u_resolution;
+
                 int neighborhood = isColored(0, 1)
                                      + isColored(1, 1)
                                      + isColored(1, 0)
@@ -67,7 +70,7 @@
                 // alive
                 if (isColored(0, 0) == 1) {
                     if (neighborhood < 2 || neighborhood > 3)
-                        gl_FragColor = texture2D(u_buffer, gl_FragCoord.xy / u_resolution) - DECAY;
+                        gl_FragColor = texture2D(u_buffer, fragNormal) - DECAY;
                     else
                         gl_FragColor = COLOR;
                 }
@@ -77,15 +80,19 @@
                     if (neighborhood == 3 || neighborhood == 7)
                        gl_FragColor = COLOR;
                     else
-                        gl_FragColor = texture2D(u_buffer, gl_FragCoord.xy / u_resolution) - DECAY;
+                        gl_FragColor = texture2D(u_buffer, fragNormal) - DECAY;
                 }
 
                 // paint tool
                 if (u_mouseDown) {
-                    vec2 distance = gl_FragCoord.xy - u_mouse;
-                    float radius = u_resolution.y / 3.;
+                    vec2 mouseSector = fract(u_surface.wz + (u_mouse / u_resolution) * (u_surface.yx - u_surface.wz));
+                    
+                    vec2 distance = abs(mouseSector - fragNormal);
+                    distance = min(distance, 1. - distance);
 
-                    if(dot(distance, distance) < radius){
+                    float radius = 0.001;
+
+                    if( dot(distance, distance) < radius){
                         gl_FragColor = COLOR * floor(rand(gl_FragCoord.xy) * 2.);
                     }
                 }
@@ -102,7 +109,7 @@
             void main() {
 
                 vec2 uv = u_surface.wz + (gl_FragCoord.xy / u_resolution) * (u_surface.yx - u_surface.wz);
-                gl_FragColor = texture2D(u_screenBuffer, mod(uv, vec2(1, 1)));
+                gl_FragColor = texture2D(u_screenBuffer, fract(uv));
 
             }
         </script>
@@ -234,7 +241,7 @@
                 surface.bottom += dy * changeY;
                 surface.left += dx * changeX;
 
-                surface.normalize();
+                // surface.normalize();
 
                 mousePos.lastX = mousePos.x;
                 mousePos.lastY = mousePos.y;
@@ -273,7 +280,7 @@
                     surface.bottom -= dy;
                     surface.left -= dx;
 
-                    surface.normalize();
+                    // surface.normalize();
                 }
             });
 
@@ -315,6 +322,7 @@
                 ['resolution', 'u_resolution'],
                 ['mouse', 'u_mouse'],
                 ['mouseDown', 'u_mouseDown'],
+                ['surface', 'u_surface'],
                 ['texture', 'u_buffer']
             );
 
@@ -322,6 +330,7 @@
                 gl.uniform2f(program.loc['resolution'], gl.drawingBufferWidth, gl.drawingBufferHeight);
                 gl.uniform2f(program.loc['mouse'], mousePos.x, mousePos.y);
                 gl.uniform1i(program.loc['mouseDown'], mousePos.leftClick);
+                gl.uniform4f(program.loc['surface'], surface.top, surface.right, surface.bottom, surface.left);
                 gl.uniform1i(program.loc['texture'], 0);
             }
 
@@ -334,14 +343,14 @@
             program.setUniformLocations(
                 ['resolution', 'u_resolution'],
                 ['mouse', 'u_mouse'],
-                ['texture', 'u_screenBuffer'],
-                ['surface', 'u_surface']
+                ['surface', 'u_surface'],
+                ['texture', 'u_screenBuffer']
             );
 
             program.setUniformValues = function() {
                 gl.uniform2f(program.loc['resolution'], gl.drawingBufferWidth, gl.drawingBufferHeight);
-                gl.uniform1i(program.loc['texture'], 1);
                 gl.uniform4f(program.loc['surface'], surface.top, surface.right, surface.bottom, surface.left);
+                gl.uniform1i(program.loc['texture'], 1);
             };
 
             return program;
