@@ -17,7 +17,7 @@
     </head>
     <body>
 
-        <canvas id='canvas'></canvas>
+        <canvas id='canvas' oncontextmenu="return false;"></canvas>
 
         <script id='vertex-shader' type='x-shader/x-vertex'>
             attribute vec2 a_position;
@@ -134,7 +134,10 @@
             mousePos = {
                 x: 0,
                 y: 0,
-                down: false
+                lastX: 0,
+                lasyY: 0,
+                leftClick: false,
+                rightClick: false
             };
 
             surface = {
@@ -142,6 +145,17 @@
                 right: 1,
                 bottom: 0,
                 left: 0,
+
+                width: function(){ return this.right - this.left },
+
+                height: function(){ return this.top - this.bottom },
+
+                normalize: function(){
+                    this.top -= Math.floor(surface.bottom);
+                    this.right -= Math.floor(surface.left);
+                    this.bottom -= Math.floor(surface.bottom);
+                    this.left -= Math.floor(surface.left);
+                }
             }
 
             stats = new Stats();
@@ -170,63 +184,97 @@
             });
             $(window).trigger('resize');
 
-
-            canvas.mousemove(function(event) {
+            canvas.mousemove(function(event){
                 mousePos.x = event.pageX;
                 mousePos.y = canvas.height() - event.pageY;
             });
 
-            canvas.mousedown(function() {
-                mousePos.down = true;
-            });
+            canvas.mousedown(function(event) {
 
-            canvas.mouseup(function() {
-                mousePos.down = false;
-            });
-
-            canvas.mousewheel(function(event){
-                var scale = 0.05;
-
-                if (event.deltaY == -1) {
-                    scale = -scale;
+                //left click
+                if (event.which === 1){
+                     mousePos.leftClick = true;
                 }
 
-                var width = surface.right - surface.left;
-                var height = surface.top - surface.bottom;
+                //right click
+                else if (event.which === 3){
+                    mousePos.rightClick = true;
+                    mousePos.lastX = mousePos.x;
+                    mousePos.lastY = mousePos.y;
 
-                var mx = surface.left + (mousePos.x / canvas.width()) * width;
-                var my = surface.bottom + (mousePos.y / canvas.height()) * height;
 
-                var cx = surface.left + width / 2;
-                var cy = surface.bottom + height / 2;
+                    canvas.bind('mousemove', panningHandler);
+                }
+           
+            });
 
-                var dx = mx - cx;
-                var dy = my - cy;
+            canvas.mouseup(function(event) {
+       
+                //left click
+                if (event.which === 1){
+                     mousePos.leftClick = false;
+                }
 
-                // scale the surface centered around the mouse location
-                surface.top += dy - height * scale;
-                surface.right += dx - width * scale;
-                surface.bottom += dy + height * scale;
-                surface.left += dx + width * scale;
+                //right click
+                else if (event.which === 3){
+                    mousePos.rightClick = false;
+                    canvas.unbind('mousemove', panningHandler);
+                }
+            });
 
-                width = surface.right - surface.left;
-                height = surface.top - surface.bottom;
+            function panningHandler(event){
+                var changeX = mousePos.lastX - mousePos.x;
+                var changeY = mousePos.lastY - mousePos.y;
 
-                mx = surface.left + (mousePos.x / canvas.width()) * width;
-                my = surface.bottom + (mousePos.y / canvas.height()) * height;
+                var dx = surface.width() / canvas.width(); 
+                var dy = surface.height() / canvas.height();
 
-                cx = surface.left + width / 2;
-                cy = surface.bottom + height / 2;
+                surface.top += dy * changeY;
+                surface.right += dx * changeX;
+                surface.bottom += dy * changeY;
+                surface.left += dx * changeX;
 
-                dx = mx - cx;
-                dy = my - cy;
+                surface.normalize();
 
-                // translate the surface back so that mouse location is in the original area on screen
-                surface.top -= dy;
-                surface.right -= dx;
-                surface.bottom -= dy;
-                surface.left -= dx;
+                mousePos.lastX = mousePos.x;
+                mousePos.lastY = mousePos.y;
+            }
 
+            canvas.mousewheel(function(event){
+
+                var scale = 0.05 * event.deltaY;
+
+                var width = surface.width();
+                var height = surface.height();
+
+                if ( (event.deltaY === 1 && width > 0.05) || (event.deltaY === -1 && width < 25) ) {
+
+                    mx = mousePos.x / canvas.width();
+                    my = mousePos.y / canvas.height();
+
+                    var dx = surface.left + mx * width - (surface.left + width / 2);
+                    var dy = surface.bottom + my * height - (surface.bottom + height / 2);
+
+                    // scale the surface centered around the mouse location
+                    surface.top += dy - height * scale;
+                    surface.right += dx - width * scale;
+                    surface.bottom += dy + height * scale;
+                    surface.left += dx + width * scale;
+
+                    var width = surface.width();
+                    var height = surface.height();
+
+                    dx = surface.left + mx * width - (surface.left + width / 2);
+                    dy = surface.bottom + my * height - (surface.bottom + height / 2);
+
+                    // translate the surface back so that mouse location is in the original area on screen
+                    surface.top -= dy;
+                    surface.right -= dx;
+                    surface.bottom -= dy;
+                    surface.left -= dx;
+
+                    surface.normalize();
+                }
             });
 
         }
@@ -273,7 +321,7 @@
             program.setUniformValues = function(){
                 gl.uniform2f(program.loc['resolution'], gl.drawingBufferWidth, gl.drawingBufferHeight);
                 gl.uniform2f(program.loc['mouse'], mousePos.x, mousePos.y);
-                gl.uniform1i(program.loc['mouseDown'], mousePos.down);
+                gl.uniform1i(program.loc['mouseDown'], mousePos.leftClick);
                 gl.uniform1i(program.loc['texture'], 0);
             }
 
