@@ -10,8 +10,8 @@
         <link rel='stylesheet' href='css/normalize.min.css'>
         <link rel='stylesheet' href='css/main.css'>
 
-        <script src='js/vendor/modernizr-2.6.2.min.js'></script>
-        <script src='js/vendor/jquery-2.0.3.js'></script>
+        <script src='js/vendor/jquery-2.1.0.min.js'></script>
+        <script src='js/vendor/jquery.mousewheel.js'></script>
         <script src='js/vendor/stats.js'></script>
         <!-- <script src='js/vendor/gl-matrix.js'></script> -->
     </head>
@@ -92,42 +92,17 @@
             }
         </script>
 
-        <script id='paint-shader' type='x-shader/x-fragment'>
-            precision mediump float;
-
-            uniform vec2 u_resolution;
-            uniform vec2 u_mouse;
-            uniform sampler2D u_buffer;
-
-            #define COLOR vec4(1, 1, 1, 1)
-
-            float rand(vec2 co){
-                 return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
-            }
-
-            void main() {
-                vec2 distance = gl_FragCoord.xy - u_mouse;   
-                float radius = u_resolution.y / 3.;
-
-                if(dot(distance, distance) < radius) {
-                    gl_FragColor = COLOR * floor(rand(gl_FragCoord.xy) * 2.);
-                }
-                else {
-                    gl_FragColor = texture2D(u_buffer, gl_FragCoord.xy / u_resolution);
-                }
-            }
-        </script>
-
         <script id='screen-shader' type='x-shader/x-fragment'>
             precision mediump float;
 
             uniform vec2 u_resolution;
-            uniform vec2 u_mouse;
             uniform sampler2D u_screenBuffer;
+            uniform vec4 u_surface; //top, right, bottom left
 
             void main() {
-                vec2 uv = gl_FragCoord.xy / u_resolution;
-                gl_FragColor = texture2D(u_screenBuffer, uv);
+
+                vec2 uv = u_surface.wz + (gl_FragCoord.xy / u_resolution) * (u_surface.yx - u_surface.wz);
+                gl_FragColor = texture2D(u_screenBuffer, mod(uv, vec2(1, 1)));
 
             }
         </script>
@@ -140,7 +115,7 @@
         var gl;
         var frontBuffer, backBuffer;
         var cellProgram, paintProgram, screenProgram;
-        var screenSize, mousePos;
+        var screenSize, mousePos, surface;
         var stats;
 
         function main(){
@@ -148,7 +123,7 @@
             animate();
         }
 
-        function init(){
+        function init() {
             screenSize = {
                 calcSize: function(){
                     this.width = $(window).width();
@@ -162,6 +137,13 @@
                 down: false
             };
 
+            surface = {
+                top: 1,
+                right: 1,
+                bottom: 0,
+                left: 0,
+            }
+
             stats = new Stats();
             stats.domElement.style.position = 'absolute';
             stats.domElement.style.left = '0px';
@@ -171,15 +153,10 @@
             var canvas =  $('canvas');
             gl = canvas[0].getContext('webgl');
 
-            // gl.enable(gl.BLEND);
-            // gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
-
             cellProgram = initCellProgram();
-            // paintProgram = initPaintProgram();
             screenProgram = initScreenProgram();
             createVertexShader(screenProgram);
 
-            // event listeners
             $(window).resize(function(){
                 screenSize.calcSize();
 
@@ -207,6 +184,50 @@
                 mousePos.down = false;
             });
 
+            canvas.mousewheel(function(event){
+                var scale = 0.05;
+
+                if (event.deltaY == -1) {
+                    scale = -scale;
+                }
+
+                var width = surface.right - surface.left;
+                var height = surface.top - surface.bottom;
+
+                var mx = surface.left + (mousePos.x / canvas.width()) * width;
+                var my = surface.bottom + (mousePos.y / canvas.height()) * height;
+
+                var cx = surface.left + width / 2;
+                var cy = surface.bottom + height / 2;
+
+                var dx = mx - cx;
+                var dy = my - cy;
+
+                // scale the surface centered around the mouse location
+                surface.top += dy - height * scale;
+                surface.right += dx - width * scale;
+                surface.bottom += dy + height * scale;
+                surface.left += dx + width * scale;
+
+                width = surface.right - surface.left;
+                height = surface.top - surface.bottom;
+
+                mx = surface.left + (mousePos.x / canvas.width()) * width;
+                my = surface.bottom + (mousePos.y / canvas.height()) * height;
+
+                cx = surface.left + width / 2;
+                cy = surface.bottom + height / 2;
+
+                dx = mx - cx;
+                dy = my - cy;
+
+                // translate the surface back so that mouse location is in the original area on screen
+                surface.top -= dy;
+                surface.right -= dx;
+                surface.bottom -= dy;
+                surface.left -= dx;
+
+            });
 
         }
 
@@ -221,12 +242,6 @@
             gl.bindTexture(gl.TEXTURE_2D, backBuffer.texture);
 
             gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
-
-            // if (mousePos.down) {
-            //     gl.useProgram(paintProgram);
-            //     paintProgram.setUniformValues();
-            //     gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
-            // }
 
             // screen buffer
             gl.bindFramebuffer(gl.FRAMEBUFFER, null);
@@ -243,8 +258,6 @@
             var tmp = frontBuffer;
             frontBuffer = backBuffer;
             backBuffer = tmp;
-
-            stats.update();
         }
 
         function initCellProgram() {
@@ -267,37 +280,20 @@
             return program;
         }
 
-        function initPaintProgram() {
-            var program = createProgram('#vertex-shader', '#paint-shader');
-
-            program.setUniformLocations(
-                ['resolution', 'u_resolution'],
-                ['mouse', 'u_mouse'],
-                ['texture', 'u_buffer']
-            );
-
-            program.setUniformValues = function(){
-                gl.uniform2f(program.loc['resolution'], gl.drawingBufferWidth, gl.drawingBufferHeight);
-                gl.uniform2f(program.loc['mouse'], mousePos.x, mousePos.y);
-                gl.uniform1i(program.loc['texture'], 0);
-            };
-
-            return program;
-        }
-
         function initScreenProgram(){
             var program = createProgram('#vertex-shader', '#screen-shader');
 
             program.setUniformLocations(
                 ['resolution', 'u_resolution'],
                 ['mouse', 'u_mouse'],
-                ['texture', 'u_screenBuffer']
+                ['texture', 'u_screenBuffer'],
+                ['surface', 'u_surface']
             );
 
             program.setUniformValues = function() {
                 gl.uniform2f(program.loc['resolution'], gl.drawingBufferWidth, gl.drawingBufferHeight);
-                gl.uniform2f(program.loc['mouse'], mousePos.x, mousePos.y);
                 gl.uniform1i(program.loc['texture'], 1);
+                gl.uniform4f(program.loc['surface'], surface.top, surface.right, surface.bottom, surface.left);
             };
 
             return program;
@@ -322,7 +318,7 @@
             gl.bindTexture(gl.TEXTURE_2D, texture);
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, screenSize.width, screenSize.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
 
@@ -365,9 +361,8 @@
 
         function animate() {
             drawScene();
-            // stats.update();
+            stats.update();
             window.requestAnimationFrame(animate);
-            // setInterval(drawScene, 1);
         }
 
         })();
