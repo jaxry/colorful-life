@@ -43,7 +43,7 @@
 
             #define COLOR vec4(1, 1, 1, 1)
             #define BACKGROUND vec4(1, 1, 1, 1)
-            #define DECAY vec4(1, 0.03, 0.002, 0)
+            #define DECAY vec4(1, 0.03, 0.002, 1)
             #define PAINT_SIZE 0.0001
 
             float rand(vec2 co) {
@@ -51,7 +51,7 @@
             }
 
             int isColored(int x, int y) {
-                if (texture2D(u_buffer, ( mod(gl_FragCoord.xy + vec2(x, y), u_bufferResolution) ) / u_bufferResolution) == COLOR) 
+                if (texture2D(u_buffer, ( mod(gl_FragCoord.xy + vec2(x, y), u_bufferResolution) ) / u_bufferResolution).a > 0.) 
                     return 1;
                 else 
                     return 0;
@@ -180,7 +180,7 @@
                 this.top = center + h;
                 this.bottom = center - h;
             }
-            
+
             this.scaleConstant = screenW / bufferW;
             this.horizontalAspectRatio = s / b;
         };
