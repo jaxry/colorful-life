@@ -37,12 +37,13 @@
             uniform vec2 u_bufferResolution;
             uniform vec2 u_mouse;
             uniform bool u_mouseDown;
+            uniform float u_paintSize;
             uniform vec4 u_surface;
             uniform sampler2D u_buffer;
 
             #define COLOR vec4(1, 1, 1, 1)
             #define BACKGROUND vec4(1, 1, 1, 1)
-            #define DECAY vec4(0.02, 0.005, 0.01, 0)
+            #define DECAY vec4(1, 0.03, 0.002, 0)
             #define PAINT_SIZE 0.0001
 
             float rand(vec2 co) {
@@ -93,7 +94,7 @@
                     distance = min(distance, 1. - distance);
                     distance.x *= u_bufferResolution.x / u_bufferResolution.y;
 
-                    if ( dot(distance, distance) < PAINT_SIZE ){
+                    if ( dot(distance, distance) < u_paintSize ){
                         gl_FragColor = COLOR * floor(rand(gl_FragCoord.xy) * 2.);
                     }
                 }
@@ -123,7 +124,7 @@
         var gl;
         var frontBuffer, backBuffer;
         var cellProgram, paintProgram, screenProgram;
-        var screenSize, bufferSize, mousePos, surface;
+        var screenSize, bufferSize, mouseProp, surface;
         var stats;
 
         function BufferSize(width, height) {
@@ -179,9 +180,16 @@
                 this.top = center + h;
                 this.bottom = center - h;
             }
+            
+            this.scaleConstant = screenW / bufferW;
+            this.horizontalAspectRatio = s / b;
+        };
+
+        Surface.prototype.paintSize = function() {
+            return surface.width() * 0.00005;
         }
 
-        function MousePos() {
+        function MouseProp() {
 
             this.x = 0;
             this.y = 0;
@@ -194,12 +202,12 @@
         function main() {
             init();
             animate();
-        };
+        }
 
         function init() {
             initStats();
             
-            mousePos = new MousePos();
+            mouseProp = new MouseProp();
             bufferSize = new BufferSize(3000, 2000);
             surface = new Surface();
 
@@ -225,22 +233,22 @@
 
             canvas.mousemove(function(event) {
 
-                mousePos.x = event.pageX;
-                mousePos.y = screenSize.height - event.pageY;
+                mouseProp.x = event.pageX;
+                mouseProp.y = screenSize.height - event.pageY;
             });
 
             canvas.mousedown(function(event) {
 
                 //left click
                 if (event.which === 1){
-                     mousePos.leftClick = true;
+                     mouseProp.leftClick = true;
                 }
 
                 //right click
                 else if (event.which === 3){
-                    mousePos.rightClick = true;
-                    mousePos.lastX = mousePos.x;
-                    mousePos.lastY = mousePos.y;
+                    mouseProp.rightClick = true;
+                    mouseProp.lastX = mouseProp.x;
+                    mouseProp.lastY = mouseProp.y;
 
                     canvas.bind('mousemove', panningHandler);
                 }
@@ -251,20 +259,20 @@
        
                 //left click
                 if (event.which === 1){
-                     mousePos.leftClick = false;
+                     mouseProp.leftClick = false;
                 }
 
                 //right click
                 else if (event.which === 3){
-                    mousePos.rightClick = false;
+                    mouseProp.rightClick = false;
                     canvas.unbind('mousemove', panningHandler);
                 }
             });
 
             function panningHandler(event) {
 
-                var changeX = mousePos.lastX - mousePos.x;
-                var changeY = mousePos.lastY - mousePos.y;
+                var changeX = mouseProp.lastX - mouseProp.x;
+                var changeY = mouseProp.lastY - mouseProp.y;
 
                 var dx = surface.width() / screenSize.width; 
                 var dy = surface.height() / screenSize.height;
@@ -274,35 +282,34 @@
                 surface.bottom += dy * changeY;
                 surface.left += dx * changeX;
 
-                // var width = surface.height() / (bufferSize.width / bufferSize.height);
-                // surface.left = surface.right - width;
-
                 surface.normalize();
 
-                mousePos.lastX = mousePos.x;
-                mousePos.lastY = mousePos.y;
+                mouseProp.lastX = mouseProp.x;
+                mouseProp.lastY = mouseProp.y;
             }
 
             canvas.mousewheel(function(event) {
 
-                var scale = 0.05 * event.deltaY;
+                var maxScale = 1;
+                var minScale = 0.05;
+                var scaleStep = 0.05 * event.deltaY;
 
                 var width = surface.width();
                 var height = surface.height();
 
-                if ( (event.deltaY === 1 && Math.min(width, height) > 0.05) || (event.deltaY === -1 && Math.max(width, height) < 1) ) {
+                if ( (event.deltaY === 1 && Math.min(width, height) > minScale * surface.scaleConstant) || (event.deltaY === -1 && Math.max(width, height) < maxScale) ) {
 
-                    mx = mousePos.x / screenSize.width;
-                    my = mousePos.y / screenSize.height;
+                    mx = mouseProp.x / screenSize.width;
+                    my = mouseProp.y / screenSize.height;
 
                     var dx = surface.left + mx * width - (surface.left + width / 2);
                     var dy = surface.bottom + my * height - (surface.bottom + height / 2);
 
                     // scale the surface centered around the mouse location
-                    surface.top += dy - height * scale;
-                    surface.right += dx - width * scale;
-                    surface.bottom += dy + height * scale;
-                    surface.left += dx + width * scale;
+                    surface.top += dy - height * scaleStep;
+                    surface.right += dx - width * scaleStep;
+                    surface.bottom += dy + height * scaleStep;
+                    surface.left += dx + width * scaleStep;
 
                     width = surface.width();
                     height = surface.height();
@@ -310,11 +317,14 @@
                     dx = surface.left + mx * width - (surface.left + width / 2);
                     dy = surface.bottom + my * height - (surface.bottom + height / 2);
 
-                    // translate the surface back so that mouse location is in the original area on screen
+                    // translate the surface back so that the mouse location is in the original area on screen
                     surface.top -= dy;
                     surface.right -= dx;
                     surface.bottom -= dy;
-                    surface.left -= dx;
+
+                    // recalculate the left side according to the aspect ratio to guarantee correct proportions
+                    var width = surface.height() * surface.horizontalAspectRatio;
+                    surface.left = surface.right - width;
 
                     surface.normalize();
                 }
@@ -362,14 +372,16 @@
                 ['bufferResolution', 'u_bufferResolution'],
                 ['mouse', 'u_mouse'],
                 ['mouseDown', 'u_mouseDown'],
+                ['paintSize', 'u_paintSize'],
                 ['surface', 'u_surface'],
                 ['texture', 'u_buffer']
             );
 
             program.setUniformValues = function() {
                 gl.uniform2f(program.loc['bufferResolution'], bufferSize.width, bufferSize.height);
-                gl.uniform2f(program.loc['mouse'], mousePos.x / screenSize.width, mousePos.y / screenSize.height);
-                gl.uniform1i(program.loc['mouseDown'], mousePos.leftClick);
+                gl.uniform2f(program.loc['mouse'], mouseProp.x / screenSize.width, mouseProp.y / screenSize.height);
+                gl.uniform1i(program.loc['mouseDown'], mouseProp.leftClick);
+                gl.uniform1f(program.loc['paintSize'], surface.paintSize());
                 gl.uniform4f(program.loc['surface'], surface.top, surface.right, surface.bottom, surface.left);
                 gl.uniform1i(program.loc['texture'], 0);
             }
