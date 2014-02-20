@@ -45,7 +45,7 @@
             #define DECAY vec4(0.02, 0.005, 0.01, 0)
             #define PAINT_SIZE 0.0001
 
-            float rand(vec2 co){
+            float rand(vec2 co) {
                  return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
             }
 
@@ -93,7 +93,7 @@
                     distance = min(distance, 1. - distance);
                     distance.x *= u_bufferResolution.x / u_bufferResolution.y;
 
-                    if( dot(distance, distance) < PAINT_SIZE){
+                    if ( dot(distance, distance) < PAINT_SIZE ){
                         gl_FragColor = COLOR * floor(rand(gl_FragCoord.xy) * 2.);
                     }
                 }
@@ -126,53 +126,60 @@
         var screenSize, bufferSize, mousePos, surface;
         var stats;
 
-        function BufferSize(width, height){
+        function BufferSize(width, height) {
             this.width = width;
             this.height = height;
         }
 
-        function ScreenSize(){
+        function ScreenSize() {
 
             this.width = $(window).width();
             this.height = $(window).height() - 5;
         }
 
-        function Surface(screenW, screenH, bufferW, bufferH){
-
-            var s = screenW / screenH;
-            var b = bufferW / bufferH;
-
-            if ( (b > 1 && b < s) || (b <= 1 && b < s) ) {
-                this.top = (b / s) / 2;
-                this.bottom = -(b / s) / 2;
-
-                this.right = 1;
-                this.left = 0;
-            }
-
-            else {
-                this.top = 1;
-                this.bottom = 0;
-
-                this.right = (s / b) / 2;
-                this.left = -(s / b) / 2;
-            }
+        function Surface(){
+            this.top = 1;
+            this.right = 1;
+            this.bottom = 0;
+            this.left = 0;
         }
 
-        Surface.prototype.width = function(){
+        Surface.prototype.width = function() {
             return this.right - this.left;
         };
 
-        Surface.prototype.height = function(){
+        Surface.prototype.height = function() {
             return this.top - this.bottom;
         };
 
-        Surface.prototype.normalize = function(){
+        Surface.prototype.normalize = function() {
+
             this.top -= Math.floor(this.bottom);
             this.right -= Math.floor(this.left);
             this.bottom -= Math.floor(this.bottom);
             this.left -= Math.floor(this.left);
         };
+
+        Surface.prototype.computeAspectRatio = function(screenW, screenH, bufferW, bufferH) {
+
+            var s = screenW / screenH;
+            var b = bufferW / bufferH;
+
+            if (s < b){
+                var center = this.left + this.width() / 2;
+                var w = this.height() * (s / b) / 2;
+                
+                this.right = center + w;
+                this.left = center - w;
+            }
+            else {
+                var center = this.bottom + this.height() / 2;
+                var h = this.width() * (b / s) / 2;
+                
+                this.top = center + h;
+                this.bottom = center - h;
+            }
+        }
 
         function MousePos() {
 
@@ -184,7 +191,7 @@
             this.rightClick = false;
         }
 
-        function main(){
+        function main() {
             init();
             animate();
         };
@@ -194,6 +201,7 @@
             
             mousePos = new MousePos();
             bufferSize = new BufferSize(3000, 2000);
+            surface = new Surface();
 
             var canvas =  $('canvas');
             gl = canvas[0].getContext('webgl');
@@ -205,18 +213,17 @@
             frontBuffer = createBuffer();
             backBuffer = createBuffer();
 
-            $(window).resize(function(){
-
+            $(window).resize(function(event) {
                 screenSize = new ScreenSize();
 
-                surface = new Surface(screenSize.width, screenSize.height, bufferSize.width, bufferSize.height);
+                surface.computeAspectRatio(screenSize.width, screenSize.height, bufferSize.width, bufferSize.height);
 
                 canvas.prop('width', screenSize.width);
                 canvas.prop('height', screenSize.height);
             });
             $(window).trigger('resize');
 
-            canvas.mousemove(function(event){
+            canvas.mousemove(function(event) {
 
                 mousePos.x = event.pageX;
                 mousePos.y = screenSize.height - event.pageY;
@@ -254,7 +261,7 @@
                 }
             });
 
-            function panningHandler(event){
+            function panningHandler(event) {
 
                 var changeX = mousePos.lastX - mousePos.x;
                 var changeY = mousePos.lastY - mousePos.y;
@@ -267,13 +274,16 @@
                 surface.bottom += dy * changeY;
                 surface.left += dx * changeX;
 
+                // var width = surface.height() / (bufferSize.width / bufferSize.height);
+                // surface.left = surface.right - width;
+
                 surface.normalize();
 
                 mousePos.lastX = mousePos.x;
                 mousePos.lastY = mousePos.y;
             }
 
-            canvas.mousewheel(function(event){
+            canvas.mousewheel(function(event) {
 
                 var scale = 0.05 * event.deltaY;
 
@@ -311,9 +321,10 @@
             });
         }
 
-        function drawScene(){
+        function drawScene() {
             // front buffer
             gl.viewport(0, 0, bufferSize.width, bufferSize.height);
+            gl.scissor(0, 0, bufferSize.width, bufferSize.height);
             gl.bindFramebuffer(gl.FRAMEBUFFER, frontBuffer);
 
             gl.useProgram(cellProgram);
@@ -326,6 +337,7 @@
 
             // screen buffer
             gl.viewport(0, 0, screenSize.width, screenSize.height);
+            gl.scissor(0, 0, screenSize.width, screenSize.height);
             gl.bindFramebuffer(gl.FRAMEBUFFER, null);
             
             gl.useProgram(screenProgram);
@@ -354,7 +366,7 @@
                 ['texture', 'u_buffer']
             );
 
-            program.setUniformValues = function(){
+            program.setUniformValues = function() {
                 gl.uniform2f(program.loc['bufferResolution'], bufferSize.width, bufferSize.height);
                 gl.uniform2f(program.loc['mouse'], mousePos.x / screenSize.width, mousePos.y / screenSize.height);
                 gl.uniform1i(program.loc['mouseDown'], mousePos.leftClick);
@@ -365,7 +377,7 @@
             return program;
         }
 
-        function initScreenProgram(){
+        function initScreenProgram() {
 
             var program = createProgram('#vertex-shader', '#screen-shader');
 
@@ -385,7 +397,7 @@
             return program;
         }
 
-        function createVertexShader(program){
+        function createVertexShader(program) {
             // create a plane which fills the screen
             var locVertexCoords = gl.getAttribLocation(program, 'a_position');
             gl.enableVertexAttribArray(locVertexCoords);
@@ -398,7 +410,7 @@
                 1, 0]), gl.STATIC_DRAW);
         }
 
-        function createBuffer(){
+        function createBuffer() {
 
             var texture = gl.createTexture();
             gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -421,7 +433,7 @@
             return buffer;
         }
 
-        function createProgram(vertexShaderID, fragmentShaderID){
+        function createProgram(vertexShaderID, fragmentShaderID) {
 
             var vertexShader = gl.createShader(gl.VERTEX_SHADER);
             gl.shaderSource(vertexShader, $(vertexShaderID).text());
