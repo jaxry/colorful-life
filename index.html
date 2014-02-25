@@ -22,36 +22,35 @@
         <script id='vertex-shader' type='x-shader/x-vertex'>
             attribute vec2 a_position;
 
+            varying vec2 v_texCoord;
+
 
             void main() {
                 vec2 clipSpace = a_position * 2.0 - 1.0;
                
                 gl_Position = vec4(clipSpace, 0, 1);
+
+                v_texCoord = a_position;
             }
         </script>
         
         <script id='cell-iteration-shader' type='x-shader/x-fragment'>
             precision mediump float;
 
-            uniform vec2 u_screenResolution;
             uniform vec2 u_bufferResolution;
-            uniform vec2 u_mouse;
-            uniform bool u_mouseDown;
-            uniform float u_paintSize;
             uniform vec4 u_surface;
             uniform sampler2D u_buffer;
+
+            varying vec2 v_texCoord;
 
             #define COLOR vec4(1, 1, 1, 1)
             #define BACKGROUND vec4(1, 1, 1, 1)
             #define DECAY vec4(1, 0.03, 0.002, 1)
-            #define PAINT_SIZE 0.0001
 
-            float rand(vec2 co) {
-                 return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
-            }
+            int isAlive(int x, int y) {
 
-            int isColored(int x, int y) {
-                if (texture2D(u_buffer, ( mod(gl_FragCoord.xy + vec2(x, y), u_bufferResolution) ) / u_bufferResolution).a > 0.) 
+                vec2 onePixel = vec2(1.0, 1.0) / u_bufferResolution;
+                if (texture2D(u_buffer, fract(v_texCoord + vec2(x, y) * onePixel)).a > 0.) 
                     return 1;
                 else 
                     return 0;
@@ -59,73 +58,87 @@
 
             void main() {
 
-                vec2 fragNormal = gl_FragCoord.xy / u_bufferResolution;
-
-                int neighborhood = isColored(0, 1)
-                                     + isColored(1, 1)
-                                     + isColored(1, 0)
-                                     + isColored(1, -1)
-                                     + isColored(0, -1)
-                                     + isColored(-1, -1)
-                                     + isColored(-1, 0)
-                                     + isColored(-1, 1);
+                int n = isAlive(0, 1)
+                      + isAlive(1, 1)
+                      + isAlive(1, 0)
+                      + isAlive(1, -1)
+                      + isAlive(0, -1)
+                      + isAlive(-1, -1)
+                      + isAlive(-1, 0)
+                      + isAlive(-1, 1);
 
                 // alive
-                if (isColored(0, 0) == 1) {
-                    if (neighborhood < 2 || neighborhood > 3)
-                        gl_FragColor = texture2D(u_buffer, fragNormal) - DECAY;
-                    else
+                if (isAlive(0, 0) == 1) {
+                    if (n == 2 || n == 3)
                         gl_FragColor = COLOR;
+                    else
+                        gl_FragColor = texture2D(u_buffer, v_texCoord) - DECAY;
+
                 }
 
                 // dead
                 else {
-                    if (neighborhood == 3 || neighborhood == 7)
+                    if (n == 3 || n == 7)
                         gl_FragColor = COLOR;
                     else
-                        gl_FragColor = texture2D(u_buffer, fragNormal) - DECAY;
-                }
-
-                // paint tool
-                if (u_mouseDown) {
-                    vec2 mouseSector = fract(u_surface.wz + u_mouse * (u_surface.yx - u_surface.wz));
-                    
-                    vec2 distance = abs(mouseSector - fragNormal);
-                    distance = min(distance, 1. - distance);
-                    distance.x *= u_bufferResolution.x / u_bufferResolution.y;
-
-                    if ( dot(distance, distance) < u_paintSize ){
-                        gl_FragColor = COLOR * floor(rand(gl_FragCoord.xy) * 2.);
-                    }
+                        gl_FragColor = texture2D(u_buffer, v_texCoord) - DECAY;
                 }
             }
+        </script>
+
+        <script id='mouse-shader' type='x-shader/x-fragment'>
+            precision mediump float;
+
+            uniform vec2 u_bufferResolution;
+            uniform vec2 u_mouse;
+            uniform float u_paintSize;
+            uniform vec4 u_surface;
+            uniform sampler2D u_buffer;
+
+            varying vec2 v_texCoord;
+
+            #define COLOR vec4(1, 1, 1, 1)
+
+            float rand(vec2 co) {
+                return fract(sin(dot(co.xy, vec2(12.9898,78.233))) * 43758.5453);
+            }
+
+            void main() {
+
+                vec2 mouseSector = fract(u_surface.wz + u_mouse * (u_surface.yx - u_surface.wz));
+                    
+                vec2 distance = abs(mouseSector - v_texCoord);
+                distance = min(distance, 1. - distance);
+                distance.x *= u_bufferResolution.x / u_bufferResolution.y;
+
+                if ( dot(distance, distance) < u_paintSize )
+                    gl_FragColor = COLOR * floor(rand(gl_FragCoord.xy) * 2.);
+                else
+                    gl_FragColor = texture2D(u_buffer, v_texCoord);
+            }
+
         </script>
 
         <script id='screen-shader' type='x-shader/x-fragment'>
             precision mediump float;
 
-            uniform vec2 u_screenResolution;
             uniform sampler2D u_screenBuffer;
             uniform vec4 u_surface; //top, right, bottom left
 
+            varying vec2 v_texCoord;
+
             void main() {
 
-                vec2 uv = u_surface.wz + (gl_FragCoord.xy / u_screenResolution) * (u_surface.yx - u_surface.wz);
+                vec2 uv = u_surface.wz + v_texCoord * (u_surface.yx - u_surface.wz);
                 gl_FragColor = texture2D(u_screenBuffer, fract(uv));
-
             }
+
         </script>
 
         <script>
-        (function() { //scoping function to contain global variables
+        (function($) { //scoping function to contain global variables
 
         $(document).ready(main);
-
-        var gl;
-        var frontBuffer, backBuffer;
-        var cellProgram, paintProgram, screenProgram;
-        var screenSize, bufferSize, mouseProp, surface;
-        var stats;
 
         function BufferSize(width, height) {
             this.width = width;
@@ -138,7 +151,7 @@
             this.height = $(window).height() - 5;
         }
 
-        function Surface(){
+        function Surface() {
             this.top = 1;
             this.right = 1;
             this.bottom = 0;
@@ -186,8 +199,8 @@
         };
 
         Surface.prototype.paintSize = function() {
-            return surface.width() * 0.00005;
-        }
+            return this.width() * 0.00005;
+        };
 
         function MouseProp() {
 
@@ -198,6 +211,12 @@
             this.leftClick = false;
             this.rightClick = false;
         }
+
+        var gl;
+        var frontBuffer, backBuffer;
+        var cellProgram, mouseProgram, screenProgram;
+        var screenSize, bufferSize, mouseProp, surface;
+        var stats;
 
         function main() {
             init();
@@ -215,11 +234,13 @@
             gl = canvas[0].getContext('webgl');
 
             cellProgram = initCellProgram();
+            mouseProgram = initMouseProgram();
             screenProgram = initScreenProgram();
+
             createVertexShader(screenProgram);
 
-            frontBuffer = createBuffer();
-            backBuffer = createBuffer();
+            frontBuffer = createBuffer(bufferSize.width, bufferSize.height);
+            backBuffer = createBuffer(bufferSize.width, bufferSize.height);
 
             $(window).resize(function(event) {
                 screenSize = new ScreenSize();
@@ -334,56 +355,80 @@
         function drawScene() {
             // front buffer
             gl.viewport(0, 0, bufferSize.width, bufferSize.height);
-            gl.scissor(0, 0, bufferSize.width, bufferSize.height);
-            gl.bindFramebuffer(gl.FRAMEBUFFER, frontBuffer);
-
-            gl.useProgram(cellProgram);
-            cellProgram.setUniformValues();
 
             gl.activeTexture(gl.TEXTURE0);
-            gl.bindTexture(gl.TEXTURE_2D, backBuffer.texture);
-
+            
+            swapBuffers();
+            gl.useProgram(cellProgram);
             gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
+
+            if (mouseProp.leftClick) {
+
+                swapBuffers();
+                gl.useProgram(mouseProgram);
+                mouseProgram.setUniformValues();
+                gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
+            }
 
             // screen buffer
             gl.viewport(0, 0, screenSize.width, screenSize.height);
-            gl.scissor(0, 0, screenSize.width, screenSize.height);
             gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-            
-            gl.useProgram(screenProgram);
-            screenProgram.setUniformValues();
 
             gl.activeTexture(gl.TEXTURE1);
             gl.bindTexture(gl.TEXTURE_2D, frontBuffer.texture);
-
+            
+            gl.useProgram(screenProgram);
+            screenProgram.setUniformValues();
             gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
 
-            // swap buffers
+        }
+
+        function swapBuffers() {
             var tmp = frontBuffer;
             frontBuffer = backBuffer;
             backBuffer = tmp;
+
+            gl.bindFramebuffer(gl.FRAMEBUFFER, frontBuffer);
+            gl.bindTexture(gl.TEXTURE_2D, backBuffer.texture);
         }
 
         function initCellProgram() {
 
             var program = createProgram('#vertex-shader', '#cell-iteration-shader');
 
-            program.setUniformLocations(
-                ['bufferResolution', 'u_bufferResolution'],
-                ['mouse', 'u_mouse'],
-                ['mouseDown', 'u_mouseDown'],
-                ['paintSize', 'u_paintSize'],
-                ['surface', 'u_surface'],
-                ['texture', 'u_buffer']
-            );
+            var locBufferResolution = gl.getUniformLocation(program, 'u_bufferResolution');
+            var locTexture          = gl.getUniformLocation(program, 'u_buffer');
 
+            // static uniforms
+            gl.useProgram(program);
+            gl.uniform2f(locBufferResolution, bufferSize.width, bufferSize.height);
+            gl.uniform1i(locTexture, 0);
+            gl.useProgram(null);
+
+            return program;
+        }
+
+        function initMouseProgram() {
+
+            var program = createProgram('#vertex-shader', '#mouse-shader');
+
+            var locBufferResolution = gl.getUniformLocation(program, 'u_bufferResolution');
+            var locMouse            = gl.getUniformLocation(program, 'u_mouse');
+            var locPaintSize        = gl.getUniformLocation(program, 'u_paintSize');
+            var locSurface          = gl.getUniformLocation(program, 'u_surface');
+            var locTexture          = gl.getUniformLocation(program, 'u_buffer');
+
+            // static uniforms
+            gl.useProgram(program);
+            gl.uniform2f(locBufferResolution, bufferSize.width, bufferSize.height);
+            gl.uniform1i(locTexture, 0);
+            gl.useProgram(null);
+
+            //dynamic uniforms
             program.setUniformValues = function() {
-                gl.uniform2f(program.loc['bufferResolution'], bufferSize.width, bufferSize.height);
-                gl.uniform2f(program.loc['mouse'], mouseProp.x / screenSize.width, mouseProp.y / screenSize.height);
-                gl.uniform1i(program.loc['mouseDown'], mouseProp.leftClick);
-                gl.uniform1f(program.loc['paintSize'], surface.paintSize());
-                gl.uniform4f(program.loc['surface'], surface.top, surface.right, surface.bottom, surface.left);
-                gl.uniform1i(program.loc['texture'], 0);
+                gl.uniform2f(locMouse, mouseProp.x / screenSize.width, mouseProp.y / screenSize.height);
+                gl.uniform1f(locPaintSize, surface.paintSize());
+                gl.uniform4f(locSurface, surface.top, surface.right, surface.bottom, surface.left);
             }
 
             return program;
@@ -393,24 +438,24 @@
 
             var program = createProgram('#vertex-shader', '#screen-shader');
 
-            program.setUniformLocations(
-                ['screenResolution', 'u_screenResolution'],
-                ['mouse', 'u_mouse'],
-                ['surface', 'u_surface'],
-                ['texture', 'u_screenBuffer']
-            );
+            var locSurface = gl.getUniformLocation(program, 'u_surface');
+            var locTexture = gl.getUniformLocation(program, 'u_screenBuffer');
 
+            // static uniforms
+            gl.useProgram(program);
+            gl.uniform1i(locTexture, 1);
+            gl.useProgram(null);
+
+            // dynamic uniforms
             program.setUniformValues = function() {
-                gl.uniform2f(program.loc['screenResolution'], screenSize.width, screenSize.height);
-                gl.uniform4f(program.loc['surface'], surface.top, surface.right, surface.bottom, surface.left);
-                gl.uniform1i(program.loc['texture'], 1);
+                gl.uniform4f(locSurface, surface.top, surface.right, surface.bottom, surface.left);
             };
 
             return program;
         }
 
         function createVertexShader(program) {
-            // create a plane which fills the screen
+
             var locVertexCoords = gl.getAttribLocation(program, 'a_position');
             gl.enableVertexAttribArray(locVertexCoords);
             gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
@@ -422,7 +467,7 @@
                 1, 0]), gl.STATIC_DRAW);
         }
 
-        function createBuffer() {
+        function createBuffer(width, height) {
 
             var texture = gl.createTexture();
             gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -430,7 +475,7 @@
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, bufferSize.width, bufferSize.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
 
             var buffer = gl.createFramebuffer();
             gl.bindFramebuffer(gl.FRAMEBUFFER, buffer);
@@ -460,13 +505,6 @@
             gl.attachShader(program, fragmentShader);
             gl.linkProgram(program);
 
-            program.setUniformLocations = function() {
-                program.loc = [];
-                for(var i = 0; i < arguments.length; i++) {
-                    program.loc[arguments[i][0]] = gl.getUniformLocation(program, arguments[i][1]);
-                }   
-            };
-
             return program;
         }
 
@@ -486,7 +524,7 @@
             document.body.appendChild(stats.domElement);
         }
 
-        })();
+        })(jQuery);
         </script>
     </body>
 </html>
