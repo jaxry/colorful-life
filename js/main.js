@@ -61,8 +61,12 @@
         this.horizontalAspectRatio = s / b;
     };
 
-    Surface.prototype.paintSize = function() {
-        return this.width() * 0.0001;
+    Surface.prototype.setPaintSize = function(value) {
+        this.paintSize = Math.pow(value, 3) / 1000000;
+    }
+
+    Surface.prototype.getPaintSize = function() {
+        return this.width() * this.paintSize;
     };
 
     function MouseProp() {
@@ -78,7 +82,7 @@
     var gl;
     var frontBuffer, backBuffer;
     var cellProgram, mouseProgram, screenProgram;
-    var controller, screenSize, bufferSize, mouseProp, surface;
+    var screenSize, bufferSize, mouseProp, surface;
     var stats;
 
     function main() {
@@ -94,7 +98,6 @@
         bufferSize = new BufferSize(screenSize.width, screenSize.height);
         mouseProp = new MouseProp();
         surface = new Surface();
-        controller = new Controller();
 
         var canvas =  $('canvas');
         gl = canvas[0].getContext('webgl');
@@ -222,8 +225,6 @@
         // front buffer
         gl.viewport(0, 0, bufferSize.width, bufferSize.height);
 
-        gl.activeTexture(gl.TEXTURE0);
-        
         swapBuffers();
         gl.useProgram(cellProgram);
         cellProgram.setUniformValues();
@@ -256,6 +257,7 @@
         backBuffer = tmp;
 
         gl.bindFramebuffer(gl.FRAMEBUFFER, frontBuffer);
+        gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, backBuffer.texture);
     }
 
@@ -265,16 +267,35 @@
 
         var locBufferResolution = gl.getUniformLocation(program, 'u_bufferResolution');
         var locTexture          = gl.getUniformLocation(program, 'u_buffer');
+        var locRules            = gl.getUniformLocation(program, 'u_rules');
 
         // static uniforms
         gl.useProgram(program);
         gl.uniform1i(locTexture, 0);
+        gl.uniform1i(locRules, 2)
         gl.useProgram(null);
 
         program.setUniformValues = function() {
         
             gl.uniform2f(locBufferResolution, bufferSize.width, bufferSize.height);
-        }
+        };
+
+        program.setRules = function(alive, dead) {
+
+            var data = [];
+            for (var i = 0; i < alive.length; i++){
+                data.push(alive[i], dead[i], 0, 0);
+            }
+
+            var texture = gl.createTexture();
+            gl.activeTexture(gl.TEXTURE2);
+            gl.bindTexture(gl.TEXTURE_2D, texture);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, alive.length, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(data));
+        };
 
         return program;
     }
@@ -299,7 +320,7 @@
             
             gl.uniform2f(locBufferResolution, bufferSize.width, bufferSize.height);
             gl.uniform2f(locMouse, mouseProp.x / screenSize.width, mouseProp.y / screenSize.height);
-            gl.uniform1f(locPaintSize, surface.paintSize());
+            gl.uniform1f(locPaintSize, surface.getPaintSize());
             gl.uniform4f(locSurface, surface.top, surface.right, surface.bottom, surface.left);
         };
 
@@ -387,13 +408,30 @@
         window.requestAnimationFrame(animate);
     }
 
+    function clearBuffers(width, height) {
+
+    }
 
     function Controller() {
+            
         this.bWidth = bufferSize.width;
         this.bHeight = bufferSize.height;
         this.bMax = 7000;
         this.bMin = 200;
         this.bAspectRatio = true;
+
+        this.paintSize = 6;
+        surface.setPaintSize(this.paintSize);
+
+        this.alive = [false, false, true, true, false, false, false, false, false];
+        this.dead = [false, false, false, true, false, false, false, true, false];
+        cellProgram.setRules(this.alive, this.dead);
+
+        this.clearScreen = function() {
+
+            frontBuffer = createBuffer(bufferSize.width, bufferSize.height);
+            backBuffer = createBuffer(bufferSize.width, bufferSize.height);
+        }
     }
 
     function initGui() {
@@ -405,6 +443,7 @@
         document.body.appendChild(stats.domElement);
 
         var gui = new dat.GUI();
+        var controller = new Controller();
 
         dat.GUI.prototype.updateDisplays = function() {
             for (var i in this.__controllers) {
@@ -412,11 +451,33 @@
             }
         };
 
-        var guiBuffer = gui.addFolder('Surface Properties');
+        gui.add(controller, 'paintSize', 1, 25).step(1).name('Brush Size').onFinishChange(onPaintSizeChange);
 
+        var guiRules = gui.addFolder('Life Rules');
+
+        guiRulesAlive = guiRules.addFolder('Alive Cells');
+        for (var i = 0; i < controller.alive.length; i++) {
+            guiRulesAlive.add(controller.alive, i).name(i + ' neighbors').onChange(onRulesChange);
+        }
+
+        guiRulesDead = guiRules.addFolder('Dead Cells');
+        for (var i = 0; i < controller.dead.length; i++) {
+            guiRulesDead.add(controller.dead, i).name(i + ' neighbors').onChange(onRulesChange);
+        }
+
+        var guiBuffer = gui.addFolder('Surface Properties');
         guiBuffer.add(controller, 'bWidth').min(controller.bMin).max(controller.bMax).step(controller.bMin).name('Width').onChange(maintainAspectRatio).onFinishChange(updateBuffers);
         guiBuffer.add(controller, 'bHeight').min(controller.bMin).max(controller.bMax).step(controller.bMin).name('Height').onChange(maintainAspectRatio).onFinishChange(updateBuffers);
         guiBuffer.add(controller, 'bAspectRatio').name('Keep Ratio');
+        guiBuffer.add(controller, 'clearScreen').name('Clear Screen');
+
+        function onPaintSizeChange(value) {
+            surface.setPaintSize(value);
+        }
+
+        function onRulesChange() {
+            cellProgram.setRules(controller.alive, controller.dead);
+        }
 
         function maintainAspectRatio(value) {
 
@@ -436,7 +497,7 @@
             }
         }
 
-        function updateBuffers(value) {
+        function updateBuffers() {
 
             // these proxy variables are required to keep the buffers from updating while the slider is being dragged.
             bufferSize.width = controller.bWidth;

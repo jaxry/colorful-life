@@ -40,8 +40,11 @@
             uniform vec2 u_bufferResolution;
             uniform vec4 u_surface;
             uniform sampler2D u_buffer;
+            uniform sampler2D u_rules;
 
             varying vec2 v_texCoord;
+
+            #define RULES_OFFSET 8.0
 
             #define COLOR vec4(1.0)
             #define BACKGROUND vec4(0.0)
@@ -69,7 +72,7 @@
 
                 // alive
                 if (isAlive(0, 0) == 1) {
-                    if (n == 2 || n == 3)
+                    if ( texture2D(u_rules, vec2(float(n) / RULES_OFFSET, 0) ).r > 0. )
                         gl_FragColor = COLOR;
                     else
                         gl_FragColor = texture2D(u_buffer, v_texCoord) - DECAY;
@@ -78,7 +81,7 @@
 
                 // dead
                 else {
-                    if (n == 3 || n == 7)
+                    if ( texture2D(u_rules, vec2(float(n) / RULES_OFFSET, 0) ).g > 0. )
                         gl_FragColor = COLOR;
                     else
                         gl_FragColor = texture2D(u_buffer, v_texCoord) - DECAY;
@@ -106,9 +109,12 @@
             void main() {
 
                 vec2 mouseSector = fract(u_surface.wz + u_mouse * (u_surface.yx - u_surface.wz));
-                    
+                
+                // distance between two points on a torus    
                 vec2 distance = abs(mouseSector - v_texCoord);
                 distance = min(distance, 1. - distance);
+
+                //adjust for aspect ratio
                 distance.x *= u_bufferResolution.x / u_bufferResolution.y;
 
                 if ( dot(distance, distance) < u_paintSize )
