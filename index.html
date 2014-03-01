@@ -46,14 +46,15 @@
 
             #define RULES_OFFSET 8.0
 
-            #define COLOR vec4(1.0)
+            #define COLOR vec4(1.0, 1.0, 1.0, 1.0)
             #define BACKGROUND vec4(0.0)
-            #define DECAY vec4(1, 0.03, 0.002, 1)
+            #define DECAY vec4(0.2, 1, 0.002, 1)
+
+            vec2 onePixel = vec2(1.0, 1.0) / u_bufferResolution;
 
             int isAlive(int x, int y) {
 
-                vec2 onePixel = vec2(1.0, 1.0) / u_bufferResolution;
-                if (texture2D(u_buffer, fract(v_texCoord + vec2(x, y) * onePixel)).a > 0.) 
+                if (texture2D(u_buffer, fract(v_texCoord + vec2(x, y) * onePixel)).a > 0.5) 
                     return 1;
                 else 
                     return 0;
@@ -141,6 +142,7 @@
 
         </script>
 
+        <script src='js/rule-presets.js'></script>
         <script src='js/main.js'></script>
     </body>
 </html>

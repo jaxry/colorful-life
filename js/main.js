@@ -109,8 +109,6 @@
         mouseProgram = initMouseProgram();
         screenProgram = initScreenProgram();
 
-        createVertexShader(screenProgram);
-
         $(window).resize(function(event) {
             screenSize = new ScreenSize();
 
@@ -284,9 +282,8 @@
 
             var data = [];
             for (var i = 0; i < alive.length; i++){
-                data.push(alive[i], dead[i], 0, 0);
+                data.push(alive[i] * 255, dead[i] * 255, 0, 0);
             }
-
             var texture = gl.createTexture();
             gl.activeTexture(gl.TEXTURE2);
             gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -344,11 +341,6 @@
             gl.uniform4f(locSurface, surface.top, surface.right, surface.bottom, surface.left);
         };
 
-        return program;
-    }
-
-    function createVertexShader(program) {
-
         var locVertexCoords = gl.getAttribLocation(program, 'a_position');
         gl.enableVertexAttribArray(locVertexCoords);
         gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
@@ -358,6 +350,8 @@
             0, 1,
             1, 1,
             1, 0]), gl.STATIC_DRAW);
+
+        return program;
     }
 
     function createBuffer(width, height) {
@@ -408,10 +402,6 @@
         window.requestAnimationFrame(animate);
     }
 
-    function clearBuffers(width, height) {
-
-    }
-
     function Controller() {
             
         this.bWidth = bufferSize.width;
@@ -423,15 +413,16 @@
         this.paintSize = 6;
         surface.setPaintSize(this.paintSize);
 
-        this.alive = [false, false, true, true, false, false, false, false, false];
-        this.dead = [false, false, false, true, false, false, false, true, false];
-        cellProgram.setRules(this.alive, this.dead);
+        this.activeRule = 0;
+
+        this.alive = new Array(9);
+        this.dead = new Array(9);
 
         this.clearScreen = function() {
 
             frontBuffer = createBuffer(bufferSize.width, bufferSize.height);
             backBuffer = createBuffer(bufferSize.width, bufferSize.height);
-        }
+        };
     }
 
     function initGui() {
@@ -444,6 +435,7 @@
 
         var gui = new dat.GUI();
         var controller = new Controller();
+        var presets = new RulePresets();
 
         dat.GUI.prototype.updateDisplays = function() {
             for (var i in this.__controllers) {
@@ -452,16 +444,20 @@
         };
 
         gui.add(controller, 'paintSize', 1, 25).step(1).name('Brush Size').onFinishChange(onPaintSizeChange);
+        gui.add(controller, 'activeRule', presets.getNames()).name('Preset').onChange(onPresetChange);
+        gui.add(controller, 'clearScreen').name('Clear Screen');
 
         var guiRules = gui.addFolder('Life Rules');
 
         guiRulesAlive = guiRules.addFolder('Alive Cells');
         for (var i = 0; i < controller.alive.length; i++) {
+            controller.alive[i] = false;
             guiRulesAlive.add(controller.alive, i).name(i + ' neighbors').onChange(onRulesChange);
         }
 
         guiRulesDead = guiRules.addFolder('Dead Cells');
         for (var i = 0; i < controller.dead.length; i++) {
+            controller.dead[i] = false;
             guiRulesDead.add(controller.dead, i).name(i + ' neighbors').onChange(onRulesChange);
         }
 
@@ -469,10 +465,27 @@
         guiBuffer.add(controller, 'bWidth').min(controller.bMin).max(controller.bMax).step(controller.bMin).name('Width').onChange(maintainAspectRatio).onFinishChange(updateBuffers);
         guiBuffer.add(controller, 'bHeight').min(controller.bMin).max(controller.bMax).step(controller.bMin).name('Height').onChange(maintainAspectRatio).onFinishChange(updateBuffers);
         guiBuffer.add(controller, 'bAspectRatio').name('Keep Ratio');
-        guiBuffer.add(controller, 'clearScreen').name('Clear Screen');
+
+        onPresetChange(controller.activeRule);
 
         function onPaintSizeChange(value) {
             surface.setPaintSize(value);
+        }
+
+        function onPresetChange(index){
+
+            rules = presets.getRule(index);
+
+            for (var i = 0; i < rules.alive.length; i++) {
+                controller.alive[i] = rules.alive[i];
+            }
+            for (var i = 0; i < rules.dead.length; i++) {
+                controller.dead[i] = rules.dead[i];
+            }
+
+            guiRulesAlive.updateDisplays();
+            guiRulesDead.updateDisplays();
+            onRulesChange();
         }
 
         function onRulesChange() {
