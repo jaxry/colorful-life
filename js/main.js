@@ -9,10 +9,47 @@
         this.height = $(window).height() - 5;
     }
 
-    function BufferSize(width, height) {
+    function RenderTargets(gl) {
 
-        this.width = width;
-        this.height = height;
+        this.initialize = function(width, height) {
+
+            this.width = width || this.width || 0;
+            this.height = height || this.height || 0;
+
+            this.front = this.createTarget();
+            this.back = this.createTarget();
+        };
+
+        this.swap = function() {
+
+            var tmp = this.front;
+            this.front = this.back;
+            this.back = tmp;
+
+            gl.bindFramebuffer(gl.FRAMEBUFFER, this.front.fbo);
+            gl.activeTexture(gl.TEXTURE0);
+            gl.bindTexture(gl.TEXTURE_2D, this.back.texture);
+        };
+
+        this.createTarget = function() {
+
+            var texture = gl.createTexture();
+            gl.bindTexture(gl.TEXTURE_2D, texture);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, this.width, this.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+
+            var fbo = gl.createFramebuffer();
+            gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+            gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
+
+            gl.bindTexture(gl.TEXTURE_2D, null);
+            gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+            return { 'fbo': fbo, 'texture': texture };
+        }
     }
 
     function Surface() {
@@ -80,10 +117,9 @@
         this.rightClick = false;
     }
 
-    var gl;
-    var frontBuffer, backBuffer;
+    var gl, renderTargets;
     var cellProgram, mouseProgram, screenProgram;
-    var screenSize, bufferSize, mouseProp, surface;
+    var screenSize, mouseProp, surface;
     var statsUi;
 
     function main() {
@@ -96,15 +132,14 @@
     function init() {
 
         screenSize = new ScreenSize();
-        bufferSize = new BufferSize(screenSize.width, screenSize.height);
         mouseProp = new MouseProp();
         surface = new Surface();
 
         var canvas =  $('canvas');
         gl = canvas[0].getContext('webgl');
 
-        frontBuffer = createBuffer(bufferSize.width, bufferSize.height);
-        backBuffer = createBuffer(bufferSize.width, bufferSize.height);
+        renderTargets = new RenderTargets(gl);
+        renderTargets.initialize(screenSize.width, screenSize.height);
 
         cellProgram = initCellProgram();
         mouseProgram = initMouseProgram();
@@ -113,7 +148,7 @@
         $(window).resize(function(event) {
             screenSize = new ScreenSize();
 
-            surface.computeAspectRatio(screenSize.width, screenSize.height, bufferSize.width, bufferSize.height);
+            surface.computeAspectRatio(screenSize.width, screenSize.height, renderTargets.width, renderTargets.height);
 
             canvas.prop('width', screenSize.width);
             canvas.prop('height', screenSize.height);
@@ -223,16 +258,16 @@
 
     function drawScene() {
         // front buffer
-        gl.viewport(0, 0, bufferSize.width, bufferSize.height);
+        gl.viewport(0, 0, renderTargets.width, renderTargets.height);
 
-        swapBuffers();
+        renderTargets.swap();
         gl.useProgram(cellProgram);
         cellProgram.setUniformValues();
         gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
 
         if (mouseProp.leftClick) {
 
-            swapBuffers();
+            renderTargets.swap();
             gl.useProgram(mouseProgram);
             mouseProgram.setUniformValues();
             gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
@@ -243,22 +278,12 @@
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
         gl.activeTexture(gl.TEXTURE1);
-        gl.bindTexture(gl.TEXTURE_2D, frontBuffer.texture);
+        gl.bindTexture(gl.TEXTURE_2D, renderTargets.front.texture);
         
         gl.useProgram(screenProgram);
         screenProgram.setUniformValues();
         gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
 
-    }
-
-    function swapBuffers() {
-        var tmp = frontBuffer;
-        frontBuffer = backBuffer;
-        backBuffer = tmp;
-
-        gl.bindFramebuffer(gl.FRAMEBUFFER, frontBuffer);
-        gl.activeTexture(gl.TEXTURE0);
-        gl.bindTexture(gl.TEXTURE_2D, backBuffer.texture);
     }
 
     function initCellProgram() {
@@ -277,7 +302,7 @@
 
         program.setUniformValues = function() {
         
-            gl.uniform2f(locBufferResolution, bufferSize.width, bufferSize.height);
+            gl.uniform2f(locBufferResolution, renderTargets.width, renderTargets.height);
         };
 
         program.setRules = function(alive, dead) {
@@ -318,7 +343,7 @@
         // dynamic uniforms
         program.setUniformValues = function() {
             
-            gl.uniform2f(locBufferResolution, bufferSize.width, bufferSize.height);
+            gl.uniform2f(locBufferResolution, renderTargets.width, renderTargets.height);
             gl.uniform2f(locMouse, mouseProp.x / screenSize.width, mouseProp.y / screenSize.height);
             gl.uniform1f(locPaintSize, surface.getPaintSize());
             gl.uniform4f(locSurface, surface.top, surface.right, surface.bottom, surface.left);
@@ -363,29 +388,6 @@
         return program;
     }
 
-    function createBuffer(width, height) {
-
-        var texture = gl.createTexture();
-        gl.bindTexture(gl.TEXTURE_2D, texture);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-
-        var buffer = gl.createFramebuffer();
-        gl.bindFramebuffer(gl.FRAMEBUFFER, buffer);
-        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
-        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-
-        buffer.texture = texture;
-
-        gl.bindTexture(gl.TEXTURE_2D, null);
-        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-
-        return buffer;
-    }
-
     function createProgram(vertexShaderID, fragmentShaderID) {
 
         var vertexShader = gl.createShader(gl.VERTEX_SHADER);
@@ -413,11 +415,11 @@
 
     function Controller() {
             
-        this.bWidth = bufferSize.width;
-        this.bHeight = bufferSize.height;
-        this.bMax = 7000;
-        this.bMin = 200;
-        this.bAspectRatio = true;
+        this.tWidth = renderTargets.width;
+        this.tHeight = renderTargets.height;
+        this.tMax = 7000;
+        this.tMin = 200;
+        this.tAspectRatio = true;
 
         this.paintSize = 6;
         surface.setPaintSize(this.paintSize);
@@ -428,9 +430,7 @@
         this.dead = new Array(9);
 
         this.clearScreen = function() {
-
-            frontBuffer = createBuffer(bufferSize.width, bufferSize.height);
-            backBuffer = createBuffer(bufferSize.width, bufferSize.height);
+            renderTargets.initialize();
         };
     }
 
@@ -470,10 +470,10 @@
             guiRulesDead.add(controller.dead, i).name(i + ' neighbors').onChange(onRulesChange);
         }
 
-        var guiBuffer = gui.addFolder('Surface Properties');
-        guiBuffer.add(controller, 'bWidth').min(controller.bMin).max(controller.bMax).step(controller.bMin).name('Width').onChange(maintainAspectRatio).onFinishChange(updateBuffers);
-        guiBuffer.add(controller, 'bHeight').min(controller.bMin).max(controller.bMax).step(controller.bMin).name('Height').onChange(maintainAspectRatio).onFinishChange(updateBuffers);
-        guiBuffer.add(controller, 'bAspectRatio').name('Keep Ratio');
+        var guiResolution = gui.addFolder('Surface Properties');
+        guiResolution.add(controller, 'tWidth').min(controller.tMin).max(controller.tMax).step(controller.tMin).name('Width').onChange(maintainAspectRatio).onFinishChange(updateBuffers);
+        guiResolution.add(controller, 'tHeight').min(controller.tMin).max(controller.tMax).step(controller.tMin).name('Height').onChange(maintainAspectRatio).onFinishChange(updateBuffers);
+        guiResolution.add(controller, 'tAspectRatio').name('Keep Ratio');
 
         onPresetChange(controller.activeRule);
 
@@ -503,31 +503,26 @@
 
         function maintainAspectRatio(value) {
 
-            if (controller.bAspectRatio) {
-                var ar = bufferSize.width / bufferSize.height;
+            if (controller.tAspectRatio) {
+                var ar = renderTargets.width / renderTargets.height;
 
-                if (value == controller.bHeight){
-                    controller.bWidth = Math.min(controller.bHeight * ar, controller.bMax);
-                    controller.bHeight = (controller.bWidth == controller.bMax ? controller.bWidth / ar : value);
+                if (value == controller.tHeight){
+                    controller.tWidth = Math.min(controller.tHeight * ar, controller.tMax);
+                    controller.tHeight = (controller.tWidth == controller.tMax ? controller.tWidth / ar : value);
                 }
                 else {
-                    controller.bHeight = Math.min(controller.bWidth / ar, controller.bMax);
-                    controller.bWidth = (controller.bHeight == controller.bMax ? controller.bHeight * ar : value);
+                    controller.tHeight = Math.min(controller.tWidth / ar, controller.tMax);
+                    controller.tWidth = (controller.tHeight == controller.tMax ? controller.tHeight * ar : value);
                 }
 
-                guiBuffer.updateDisplays();
+                guiResolution.updateDisplays();
             }
         }
 
         function updateBuffers() {
 
-            // these proxy variables are required to keep the buffers from updating while the slider is being dragged.
-            bufferSize.width = controller.bWidth;
-            bufferSize.height = controller.bHeight;
-
-            frontBuffer = createBuffer(bufferSize.width, bufferSize.height);
-            backBuffer = createBuffer(bufferSize.width, bufferSize.height);
-            surface.computeAspectRatio(screenSize.width, screenSize.height, bufferSize.width, bufferSize.height);
+            renderTargets.initialize(controller.tWidth, controller.tHeight);
+            surface.computeAspectRatio(screenSize.width, screenSize.height, renderTargets.width, renderTargets.height);
         }
     }
 
