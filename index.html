@@ -44,46 +44,46 @@
 
             varying vec2 v_texCoord;
 
-            #define RULES_OFFSET 8.0
+            #define RULES_COUNT 8.0
 
-            #define COLOR vec4(1.0, 1.0, 1.0, 1.0)
-            #define BACKGROUND vec4(0.0)
-            #define DECAY vec4(0.2, 1, 0.002, 1)
+            #define DECAY vec4(0.002, 0.002, 0.002, 1)
 
             vec2 onePixel = vec2(1.0, 1.0) / u_bufferResolution;
 
-            int isAlive(int x, int y) {
+            vec4 isAlive(int x, int y) {
+                vec4 pixel = texture2D(u_buffer, fract(v_texCoord + vec2(x, y) * onePixel));
 
-                if (texture2D(u_buffer, fract(v_texCoord + vec2(x, y) * onePixel)).a > 0.5) 
-                    return 1;
+                if (pixel.a > 0.5) 
+                    return vec4(pixel.rgb, 1.);
                 else 
-                    return 0;
+                    return vec4(0, 0, 0, 0);
             }
 
             void main() {
 
-                int n = isAlive(0, 1)
-                      + isAlive(1, 1)
-                      + isAlive(1, 0)
-                      + isAlive(1, -1)
-                      + isAlive(0, -1)
-                      + isAlive(-1, -1)
-                      + isAlive(-1, 0)
-                      + isAlive(-1, 1);
+
+                vec4 n = isAlive(0, 1)
+                       + isAlive(1, 1)
+                       + isAlive(1, 0)
+                       + isAlive(1, -1)
+                       + isAlive(0, -1)
+                       + isAlive(-1, -1)
+                       + isAlive(-1, 0)
+                       + isAlive(-1, 1);
 
                 // alive
-                if (isAlive(0, 0) == 1) {
-                    if ( texture2D(u_rules, vec2(float(n) / RULES_OFFSET, 0) ).r > 0. )
-                        gl_FragColor = COLOR;
+                if (isAlive(0, 0).a == 1.) {
+                    if ( texture2D(u_rules, vec2(n.a / RULES_COUNT, 0) ).r > 0. )
+                        gl_FragColor = texture2D(u_buffer, v_texCoord);
                     else
                         gl_FragColor = texture2D(u_buffer, v_texCoord) - DECAY;
 
                 }
 
-                // dead
+                // // dead
                 else {
-                    if ( texture2D(u_rules, vec2(float(n) / RULES_OFFSET, 0) ).g > 0. )
-                        gl_FragColor = COLOR;
+                    if ( texture2D(u_rules, vec2(n.a / RULES_COUNT, 0) ).g > 0. )
+                        gl_FragColor = n / vec4(n.a, n.a, n.a, 1);
                     else
                         gl_FragColor = texture2D(u_buffer, v_texCoord) - DECAY;
                 }
@@ -95,13 +95,12 @@
 
             uniform vec2 u_bufferResolution;
             uniform vec2 u_mouse;
+            uniform vec4 u_color;
             uniform float u_paintSize;
             uniform vec4 u_surface;
             uniform sampler2D u_buffer;
 
             varying vec2 v_texCoord;
-
-            #define COLOR vec4(1.0)
 
             float rand(vec2 co) {
                 return fract(sin(dot(co.xy, vec2(12.9898,78.233))) * 43758.5453);
@@ -119,7 +118,7 @@
                 distance.x *= u_bufferResolution.x / u_bufferResolution.y;
 
                 if ( dot(distance, distance) < u_paintSize )
-                    gl_FragColor = COLOR * floor(rand(gl_FragCoord.xy) * 2.);
+                    gl_FragColor = u_color * floor(rand(gl_FragCoord.xy) * 2.);
                 else
                     gl_FragColor = texture2D(u_buffer, v_texCoord);
             }

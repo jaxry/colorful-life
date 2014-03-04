@@ -10,6 +10,7 @@
     }
 
     function BufferSize(width, height) {
+
         this.width = width;
         this.height = height;
     }
@@ -83,7 +84,7 @@
     var frontBuffer, backBuffer;
     var cellProgram, mouseProgram, screenProgram;
     var screenSize, bufferSize, mouseProp, surface;
-    var stats;
+    var statsUi;
 
     function main() {
 
@@ -130,6 +131,7 @@
             //left click
             if (event.which === 1){
                  mouseProp.leftClick = true;
+                 mouseProgram.setColor();
             }
 
             //right click
@@ -303,6 +305,7 @@
 
         var locBufferResolution = gl.getUniformLocation(program, 'u_bufferResolution');
         var locMouse            = gl.getUniformLocation(program, 'u_mouse');
+        var locColor            = gl.getUniformLocation(program, 'u_color');
         var locPaintSize        = gl.getUniformLocation(program, 'u_paintSize');
         var locSurface          = gl.getUniformLocation(program, 'u_surface');
         var locTexture          = gl.getUniformLocation(program, 'u_buffer');
@@ -320,6 +323,12 @@
             gl.uniform1f(locPaintSize, surface.getPaintSize());
             gl.uniform4f(locSurface, surface.top, surface.right, surface.bottom, surface.left);
         };
+
+        program.setColor = function() {
+            gl.useProgram(program);
+            gl.uniform4f(locColor, Math.random(), Math.random(), Math.random(), 1.0);
+            gl.useProgram(null);
+        }
 
         return program;
     }
@@ -398,7 +407,7 @@
     function animate() {
 
         drawScene();
-        stats.update();
+        statsUi.update();
         window.requestAnimationFrame(animate);
     }
 
@@ -427,11 +436,11 @@
 
     function initGui() {
 
-        stats = new Stats();
-        stats.domElement.style.position = 'absolute';
-        stats.domElement.style.left = '0px';
-        stats.domElement.style.top = '0px';
-        document.body.appendChild(stats.domElement);
+        statsUi = new Stats();
+        statsUi.domElement.style.position = 'absolute';
+        statsUi.domElement.style.left = '0px';
+        statsUi.domElement.style.top = '0px';
+        document.body.appendChild(statsUi.domElement);
 
         var gui = new dat.GUI();
         var controller = new Controller();

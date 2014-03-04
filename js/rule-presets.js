@@ -27,7 +27,8 @@ function RulePresets() {
         },
         {
             name: 'Conway\'s Life',
-            rule: '23/3'        },
+            rule: '23/3'        
+        },
         {
             name: 'Coral',
             rule: '45678/3'
