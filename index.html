@@ -83,7 +83,9 @@
                 // // dead
                 else {
                     if ( texture2D(u_rules, vec2(n.a / RULES_COUNT, 0) ).g > 0. )
-                        gl_FragColor = n / vec4(n.a, n.a, n.a, 1);
+                        gl_FragColor = ( n.a > 0.5 ? 
+                                         n / vec4(n.a, n.a, n.a, 1) :
+                                         vec4(1, 1, 1, 1) );
                     else
                         gl_FragColor = texture2D(u_buffer, v_texCoord) - DECAY;
                 }

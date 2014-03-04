@@ -107,6 +107,28 @@
         return this.width() * this.paintSize;
     };
 
+    Surface.prototype.setPaintColor = function(h, s, v) {
+        var c = v * s;
+        var hp = h / 60;
+        var x = c * (1 - Math.abs( hp % 2 - 1 ))
+        
+        var r, g, b;
+        
+        switch ( Math.floor(hp) ) {
+            case 0: r = c, g = x, b = 0; break;
+            case 1: r = x, g = c, b = 0; break;
+            case 2: r = 0, g = c, b = x; break;
+            case 3: r = 0, g = x, b = c; break;
+            case 4: r = x, g = 0, b = c; break;
+            case 5: r = c, g = 0, b = x; break;
+        }
+        
+        var m = v - c;
+        r += m, g += m, b += m;
+        
+        this.paintColor = {'r': r, 'g': g, 'b': b}
+    };
+
     function MouseProp() {
 
         this.x = 0;
@@ -166,7 +188,11 @@
             //left click
             if (event.which === 1){
                  mouseProp.leftClick = true;
-                 mouseProgram.setColor();
+                 surface.setPaintColor (
+                    Math.random() * 360,
+                    ( Math.random() * 2 < 1 ? Math.random() : Math.random() / 2 + 0.5 ),
+                    Math.random() / 5 + 0.8
+                )
             }
 
             //right click
@@ -345,15 +371,10 @@
             
             gl.uniform2f(locBufferResolution, renderTargets.width, renderTargets.height);
             gl.uniform2f(locMouse, mouseProp.x / screenSize.width, mouseProp.y / screenSize.height);
+            gl.uniform4f(locColor, surface.paintColor.r, surface.paintColor.g, surface.paintColor.b, 1.0);
             gl.uniform1f(locPaintSize, surface.getPaintSize());
             gl.uniform4f(locSurface, surface.top, surface.right, surface.bottom, surface.left);
         };
-
-        program.setColor = function() {
-            gl.useProgram(program);
-            gl.uniform4f(locColor, Math.random(), Math.random(), Math.random(), 1.0);
-            gl.useProgram(null);
-        }
 
         return program;
     }
