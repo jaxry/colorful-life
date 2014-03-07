@@ -75,22 +75,27 @@ function Surface() {
         var b = bufferW / bufferH;
 
         if (s < b){
-            var center = this.left + this.width() / 2;
-            var w = this.height() * (s / b) / 2;
+
+            var center = (this.left + this.right) / 2;
+            var w = this.height() * (s / b);
             
-            this.right = center + w;
-            this.left = center - w;
+            this.right = center + w / 2;
+            this.left = center - w / 2;
+
+            this.horizontalAspectRatio = s / b;
+            this.verticalAspectRatio = 1;
         }
         else {
-            var center = this.bottom + this.height() / 2;
-            var h = this.width() * (b / s) / 2;
-            
-            this.top = center + h;
-            this.bottom = center - h;
-        }
 
-        this.scaleConstant = screenW / bufferW;
-        this.horizontalAspectRatio = s / b;
+            var center = (this.bottom + this.top) / 2;
+            var h = this.width() * (b / s);
+            
+            this.top = center + h / 2;
+            this.bottom = center - h / 2;
+
+            this.horizontalAspectRatio = 1;
+            this.verticalAspectRatio = b / s;
+        }
     };
 
     this.setPaintSize = function(value) {
@@ -118,16 +123,15 @@ function init() {
     
     surface = new Surface();
     params = {
-        
         mouseX: 0,
         mouseY: 0,
         mouseLastX: 0,
         mouseLastY: 0,
-        leftClick: false,
-        rightClick: false,
 
         screenWidth: $(window).width(),
         screenHeight: $(window).height(),
+        zoomStep: 6,
+        zoomLevel: 0,
         paintColor: null
     };
 
@@ -150,54 +154,86 @@ function init() {
 
         canvas.prop('width', params.screenWidth);
         canvas.prop('height', params.screenHeight);
-
     });
     $(window).trigger('resize');
 
     canvas.mousemove(function(event) {
 
         params.mouseX = event.clientX / canvas.width();
-        params.mouseY = 1 - (event.clientY / canvas.height() );
+        params.mouseY = 1 - (event.clientY / canvas.height());
     });
 
     canvas.mousedown(function(event) {
 
         //left click
         if (event.which === 1){
-             params.leftClick = true;
              params.paintColor = HSVtoRGB (
                 Math.random() * 360,
                 ( Math.random() * 2 < 1 ? Math.random() : Math.random() / 2 + 0.5 ),
-                Math.random() / 5 + 0.8
+                1
             );
+            canvas.bind('mousemove', mouseProgram.draw);
         }
-
         //right click
         else if (event.which === 3){
-            params.rightClick = true;
+
             params.mouseLastX = params.mouseX;
             params.mouseLastY = params.mouseY;
-
             canvas.bind('mousemove', panningHandler);
         }
-   
     });
 
     canvas.mouseup(function(event) {
 
         //left click
-        if (event.which === 1){
-             params.leftClick = false;
+        if (event.which === 1) {
+            canvas.unbind('mousemove', mouseProgram.draw);
         }
-
         //right click
-        else if (event.which === 3){
-            params.rightClick = false;
+        else if (event.which === 3) {
             canvas.unbind('mousemove', panningHandler);
         }
     });
 
-    function panningHandler(event) {
+    canvas.mousewheel(function(event) {
+
+        if ( (event.deltaY == -1 && params.zoomLevel > 0) || (event.deltaY == 1 && params.zoomLevel < 60) ) {
+            
+            params.zoomLevel += event.deltaY;
+            var scale =  1 / (Math.pow(2, (params.zoomLevel + params.zoomStep) / params.zoomStep));
+
+            var mx = params.mouseX - 0.5;
+            var my = params.mouseY - 0.5;
+
+            var width = surface.width();
+            var height = surface.height();
+
+            surface.top += height * my;
+            surface.right += width * mx;
+            surface.bottom += height * my;
+            surface.left += width * mx;
+
+            var centerX = (surface.left + surface.right) / 2;
+            var centerY = (surface.bottom + surface.top) / 2;
+
+            surface.top = centerY + scale * surface.verticalAspectRatio;
+            surface.right = centerX + scale * surface.horizontalAspectRatio;
+            surface.bottom = centerY - scale * surface.verticalAspectRatio;
+            surface.left = centerX - scale * surface.horizontalAspectRatio;
+
+            width = surface.width();
+            height = surface.height();
+
+            surface.top -= height * my;
+            surface.right -= width * mx;
+            surface.bottom -= height * my;
+            surface.left -= width * mx;
+
+            surface.normalize();
+        }
+    });
+
+    function panningHandler() {
 
         var dx = params.mouseLastX - params.mouseX;
         var dy = params.mouseLastY - params.mouseY;
@@ -210,83 +246,19 @@ function init() {
         surface.bottom += height * dy;
         surface.left += width * dx;
 
-        surface.normalize();
-
         params.mouseLastX = params.mouseX;
         params.mouseLastY = params.mouseY;
+
+        surface.normalize();
     }
-
-    canvas.mousewheel(function(event) {
-
-        var maxScale = 1;
-        var minScale = 0.05;
-        var scaleStep = 0.05 * event.deltaY;
-
-        var width = surface.width();
-        var height = surface.height();
-
-        if ( (event.deltaY === 1 && Math.min(width, height) > minScale * surface.scaleConstant) || (event.deltaY === -1 && Math.max(width, height) < maxScale) ) {
-
-            mx = params.mouseX
-            my = params.mouseY
-
-            var dx = surface.left + mx * width - (surface.left + width / 2);
-            var dy = surface.bottom + my * height - (surface.bottom + height / 2);
-
-            // scale the surface centered around the mouse location
-            surface.top += dy - height * scaleStep;
-            surface.right += dx - width * scaleStep;
-            surface.bottom += dy + height * scaleStep;
-            surface.left += dx + width * scaleStep;
-
-            width = surface.width();
-            height = surface.height();
-
-            dx = surface.left + mx * width - (surface.left + width / 2);
-            dy = surface.bottom + my * height - (surface.bottom + height / 2);
-
-            // translate the surface back so that the mouse location is in the original area on screen
-            surface.top -= dy;
-            surface.right -= dx;
-            surface.bottom -= dy;
-
-            // recalculate the left side according to the aspect ratio to guarantee correct proportions
-            var width = surface.height() * surface.horizontalAspectRatio;
-            surface.left = surface.right - width;
-
-            surface.normalize();
-        }
-    });
 }
 
-function drawScene() {
-    // front buffer
-    gl.viewport(0, 0, renderTargets.width, renderTargets.height);
+function animate() {
 
-    renderTargets.swap();
-    gl.useProgram(cellProgram);
-    cellProgram.setUniformValues();
-    gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
-
-    if (params.leftClick) {
-
-        renderTargets.swap();
-        gl.useProgram(mouseProgram);
-        mouseProgram.setUniformValues();
-        gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
-    }
-
-    // screen buffer
-    gl.viewport(0, 0, params.screenWidth, params.screenHeight);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-
-    gl.activeTexture(gl.TEXTURE1);
-    gl.bindTexture(gl.TEXTURE_2D, renderTargets.front.texture);
-    
-    gl.useProgram(screenProgram);
-    screenProgram.setUniformValues();
-    gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
-
+    cellProgram.draw();
+    screenProgram.draw();
+    statsUi.update();
+    window.requestAnimationFrame(animate);
 }
 
 function initCellProgram() {
@@ -303,11 +275,6 @@ function initCellProgram() {
     gl.uniform1i(locRules, 2)
     gl.useProgram(null);
 
-    program.setUniformValues = function() {
-    
-        gl.uniform2f(locBufferResolution, renderTargets.width, renderTargets.height);
-    };
-
     program.setRules = function(alive, dead) {
 
         var data = [];
@@ -322,6 +289,17 @@ function initCellProgram() {
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, alive.length, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(data));
+    };
+
+
+    program.draw = function() {
+
+        gl.viewport(0, 0, renderTargets.width, renderTargets.height);
+        renderTargets.swap();
+
+        gl.useProgram(program);
+        gl.uniform2f(locBufferResolution, renderTargets.width, renderTargets.height);
+        gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
     };
 
     return program;
@@ -344,13 +322,19 @@ function initMouseProgram() {
     gl.useProgram(null);
 
     // dynamic uniforms
-    program.setUniformValues = function() {
-        
+    program.draw = function() {
+
+        gl.viewport(0, 0, renderTargets.width, renderTargets.height);
+        renderTargets.swap();
+
+        gl.useProgram(program);
         gl.uniform2f(locBufferResolution, renderTargets.width, renderTargets.height);
         gl.uniform2f(locMouse, params.mouseX, params.mouseY);
         gl.uniform4f(locColor, params.paintColor.r, params.paintColor.g, params.paintColor.b, 1.0);
         gl.uniform1f(locPaintSize, surface.getPaintSize());
         gl.uniform4f(locSurface, surface.top, surface.right, surface.bottom, surface.left);
+
+        gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);  
     };
 
     return program;
@@ -368,11 +352,6 @@ function initScreenProgram() {
     gl.uniform1i(locTexture, 1);
     gl.useProgram(null);
 
-    // dynamic uniforms
-    program.setUniformValues = function() {
-        gl.uniform4f(locSurface, surface.top, surface.right, surface.bottom, surface.left);
-    };
-
     var locVertexCoords = gl.getAttribLocation(program, 'a_position');
     gl.enableVertexAttribArray(locVertexCoords);
     gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
@@ -383,40 +362,28 @@ function initScreenProgram() {
         1, 1,
         1, 0]), gl.STATIC_DRAW);
 
-    return program;
-}
+    program.draw = function() {
 
-function createProgram(vertexShaderID, fragmentShaderID) {
+        gl.viewport(0, 0, params.screenWidth, params.screenHeight);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
-    var vertexShader = gl.createShader(gl.VERTEX_SHADER);
-    gl.shaderSource(vertexShader, $(vertexShaderID).text());
-    gl.compileShader(vertexShader);
+        gl.useProgram(screenProgram);
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, renderTargets.front.texture);
+        gl.uniform4f(locSurface, surface.top, surface.right, surface.bottom, surface.left);
 
-    var fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
-    gl.shaderSource(fragmentShader, $(fragmentShaderID).text());
-    gl.compileShader(fragmentShader);
-
-    var program = gl.createProgram();
-    gl.attachShader(program, vertexShader);
-    gl.attachShader(program, fragmentShader);
-    gl.linkProgram(program);
+        gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
+    };
 
     return program;
-}
-
-function animate() {
-
-    drawScene();
-    statsUi.update();
-    window.requestAnimationFrame(animate);
 }
 
 function Controller() {
         
     this.tWidth = renderTargets.width;
     this.tHeight = renderTargets.height;
-    this.tMax = 7000;
-    this.tMin = 200;
+    this.tMax = 10000;
+    this.tMin = 250;
     this.tAspectRatio = true;
 
     this.paintSize = 6;
@@ -524,11 +491,29 @@ function initGui() {
     }
 }
 
+function createProgram(vertexShaderID, fragmentShaderID) {
+
+    var vertexShader = gl.createShader(gl.VERTEX_SHADER);
+    gl.shaderSource(vertexShader, $(vertexShaderID).text());
+    gl.compileShader(vertexShader);
+
+    var fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+    gl.shaderSource(fragmentShader, $(fragmentShaderID).text());
+    gl.compileShader(fragmentShader);
+
+    var program = gl.createProgram();
+    gl.attachShader(program, vertexShader);
+    gl.attachShader(program, fragmentShader);
+    gl.linkProgram(program);
+
+    return program;
+}
+
 function HSVtoRGB(h, s, v){
 
     var c = v * s;
     var hp = h / 60;
-    var x = c * (1 - Math.abs( hp % 2 - 1 ))
+    var x = c * (1 - Math.abs( hp % 2 - 1 ));
 
     var r, g, b;
 
@@ -544,7 +529,7 @@ function HSVtoRGB(h, s, v){
     var m = v - c;
     r += m, g += m, b += m;
     
-    return {'r': r, 'g': g, 'b': b}
+    return {'r': r, 'g': g, 'b': b};
 }
 
 })(jQuery);

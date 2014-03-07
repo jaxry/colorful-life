@@ -46,7 +46,8 @@
 
             #define RULES_COUNT 8.0
 
-            #define DECAY vec4(0.002, 0.002, 0.002, 1)
+            #define FIRST_DECAY vec4( vec3(0.2), 1)
+            #define DECAY vec4( vec3(0.002), 1)
 
             vec2 onePixel = vec2(1.0, 1.0) / u_bufferResolution;
 
@@ -76,7 +77,7 @@
                     if ( texture2D(u_rules, vec2(n.a / RULES_COUNT, 0) ).r > 0. )
                         gl_FragColor = texture2D(u_buffer, v_texCoord);
                     else
-                        gl_FragColor = texture2D(u_buffer, v_texCoord) - DECAY;
+                        gl_FragColor = texture2D(u_buffer, v_texCoord) - FIRST_DECAY;
 
                 }
 
@@ -85,7 +86,7 @@
                     if ( texture2D(u_rules, vec2(n.a / RULES_COUNT, 0) ).g > 0. )
                         gl_FragColor = ( n.a > 0.5 ? 
                                          n / vec4(n.a, n.a, n.a, 1) :
-                                         vec4(1, 1, 1, 1) );
+                                         vec4(0.5, 0.5, 0.5, 1) );
                     else
                         gl_FragColor = texture2D(u_buffer, v_texCoord) - DECAY;
                 }
