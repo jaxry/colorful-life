@@ -54,8 +54,8 @@
             vec4 isAlive(int x, int y) {
                 vec4 pixel = texture2D(u_buffer, fract(v_texCoord + vec2(x, y) * onePixel));
 
-                if (pixel.a > 0.5) 
-                    return vec4(pixel.rgb, 1.);
+                if (pixel.a == 1.) 
+                    return pixel;
                 else 
                     return vec4(0, 0, 0, 0);
             }
@@ -84,11 +84,12 @@
                 // // dead
                 else {
                     if ( texture2D(u_rules, vec2(n.a / RULES_COUNT, 0) ).g > 0. )
-                        gl_FragColor = ( n.a > 0.5 ? 
+                        gl_FragColor = ( n.a >= 1. ? 
                                          n / vec4(n.a, n.a, n.a, 1) :
                                          vec4(0.5, 0.5, 0.5, 1) );
-                    else
-                        gl_FragColor = texture2D(u_buffer, v_texCoord) - DECAY;
+                    else 
+                        gl_FragColor = texture2D(u_buffer, v_texCoord)- DECAY;
+              
                 }
             }
         </script>
@@ -100,13 +101,14 @@
             uniform vec2 u_mouse;
             uniform vec4 u_color;
             uniform float u_paintSize;
+            uniform float u_random;
             uniform vec4 u_surface;
             uniform sampler2D u_buffer;
 
             varying vec2 v_texCoord;
 
             float rand(vec2 co) {
-                return fract(sin(dot(co.xy, vec2(12.9898,78.233))) * 43758.5453);
+                return fract(sin(dot(co.xy + u_random, vec2(12.9898,78.233))) * 43758.5453);
             }
 
             void main() {
@@ -121,7 +123,7 @@
                 distance.x *= u_bufferResolution.x / u_bufferResolution.y;
 
                 if ( dot(distance, distance) < u_paintSize )
-                    gl_FragColor = u_color * floor(rand(gl_FragCoord.xy) * 2.);
+                    gl_FragColor = u_color * floor(rand(gl_FragCoord.xy / u_bufferResolution) * 2.);
                 else
                     gl_FragColor = texture2D(u_buffer, v_texCoord);
             }
