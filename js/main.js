@@ -100,13 +100,13 @@ function Surface() {
         }
     };
 
-    this.setPaintSize = function(value) {
-        this.paintSize = Math.pow(value, 3) / 1000000;
-    };
+    this.setPaintSize = function(value, power, scale) {
+        this.paintSize = Math.pow(value, 3) / 1e+6;
+    }
 
     this.getPaintSize = function() {
-        return this.width() * this.paintSize;
-    };
+        return Math.pow(Math.min(this.width(), this.height()), 2) * this.paintSize;
+    }
 }
 
 var gl, renderTargets;
@@ -134,8 +134,13 @@ function init() {
         screenHeight: $(window).height(),
         zoomStep: 8,
         zoomLevel: 0,
+        animate: true,
+
+        paintSize: 0,
         paintColor: null,
-        animate: true
+        paintErase: false,
+        paintSolid: false,
+        paintPixel : false
     };
 
     var canvas =  $('canvas');
@@ -201,7 +206,7 @@ function init() {
 
     canvas.mousewheel(function(event) {
 
-        if ( (event.deltaY == -1 && params.zoomLevel > 0) || (event.deltaY == 1 && params.zoomLevel < params.zoomStep * 4) ) {
+        if ( (event.deltaY == -1 && params.zoomLevel > 0) || (event.deltaY == 1 && params.zoomLevel < params.zoomStep * 5) ) {
             
             params.zoomLevel += event.deltaY;
             var scale =  1 / Math.exp( (params.zoomLevel + params.zoomStep) / params.zoomStep );
@@ -235,6 +240,18 @@ function init() {
 
             surface.normalize();
         }
+    });
+
+    $(window).keydown(function(event) {
+
+        if (event.which === 16) params.paintErase = true; //shift key
+        if (event.which === 17) params.paintSolid = true; //ctrl key
+    });
+
+    $(window).keyup(function(event) {
+
+        if (event.which === 16) params.paintErase = false; //shift key
+        if (event.which === 17) params.paintSolid = false; //ctrl key
     });
 
     function panningHandler() {
@@ -317,8 +334,9 @@ function initMouseProgram() {
 
     var locBufferResolution = gl.getUniformLocation(program, 'u_bufferResolution');
     var locMouse            = gl.getUniformLocation(program, 'u_mouse');
-    var locColor            = gl.getUniformLocation(program, 'u_color');
     var locPaintSize        = gl.getUniformLocation(program, 'u_paintSize');
+    var locColor            = gl.getUniformLocation(program, 'u_color');
+    var locPaintType        = gl.getUniformLocation(program, 'u_paintType');
     var locRandom           = gl.getUniformLocation(program, 'u_random');
     var locSurface          = gl.getUniformLocation(program, 'u_surface');
     var locTexture          = gl.getUniformLocation(program, 'u_buffer');
@@ -328,7 +346,6 @@ function initMouseProgram() {
     gl.uniform1i(locTexture, 0);
     gl.useProgram(null);
 
-    // dynamic uniforms
     program.draw = function() {
 
         gl.viewport(0, 0, renderTargets.width, renderTargets.height);
@@ -338,6 +355,7 @@ function initMouseProgram() {
         gl.uniform2f(locBufferResolution, renderTargets.width, renderTargets.height);
         gl.uniform2f(locMouse, params.mouseX, params.mouseY);
         gl.uniform4f(locColor, params.paintColor.r, params.paintColor.g, params.paintColor.b, 1.0);
+        gl.uniform1iv(locPaintType, [params.paintPixel, params.paintErase, params.paintSolid]);
         gl.uniform1f(locPaintSize, surface.getPaintSize());
         gl.uniform1f(locRandom, Math.random());
         gl.uniform4f(locSurface, surface.top, surface.right, surface.bottom, surface.left);
@@ -396,7 +414,7 @@ function Controller() {
     this.tMin = 250;
     this.tAspectRatio = true;
 
-    this.paintSize = 6;
+    this.paintSize = 5;
 
     this.activeRule = 0;
     this.alive = new Array(9);
@@ -410,7 +428,7 @@ function Controller() {
         params.animate = !params.animate;
     };
 
-    this.rulesChange = function() {
+    this.setRules = function() {
         cellProgram.setRules(this.alive, this.dead);
     };
 
@@ -423,10 +441,12 @@ function Controller() {
         surface.computeAspectRatio(params.screenWidth, params.screenHeight, this.tWidth, this.tHeight);
     };
 
-    this.paintChange = function(value) {
+    this.setPaintSize = function(value) {
+        
+        params.paintPixel = (value === 0 ? true : false);
         surface.setPaintSize(value);
     };
-    this.paintChange(this.paintSize);
+    this.setPaintSize(this.paintSize);
 }
 
 function initGui() {
@@ -438,8 +458,8 @@ function initGui() {
     document.body.appendChild(statsUi.domElement);
 
     var gui = new dat.GUI();
-    var controller = new Controller();
     var presets = new RulePresets();
+    var cont = new Controller();
 
     dat.GUI.prototype.updateDisplays = function() {
         for (var i in this.__controllers) {
@@ -447,41 +467,39 @@ function initGui() {
         }
     };
 
-    gui.add(controller, 'paintSize', 1, 25).step(1).name('Brush Size').onFinishChange(controller.paintChange);
-    gui.add(controller, 'activeRule', presets.getNames()).name('Preset').onChange(onPresetChange);
-    var animate = gui.add(controller, 'toggleAnimation').name('Pause').onChange(onAnimationToggle);
-    animate.animating = true;
+    gui.add(cont, 'paintSize').min(0).max(25).step(1).name('Brush Size').onFinishChange(cont.setPaintSize);
+
+    gui.add(cont, 'activeRule', presets.getNames()).name('Preset').onChange(onPresetChange);
+    var iAnimate = gui.add(cont, 'toggleAnimation').name('Pause').onChange(onAnimationToggle);
+    iAnimate.animating = true;
 
     var guiRules = gui.addFolder('Life Rules');
-
     guiRulesAlive = guiRules.addFolder('Alive Cells');
-    for (var i = 0; i < controller.alive.length; i++) {
-        controller.alive[i] = false;
-        guiRulesAlive.add(controller.alive, i).name(i + ' neighbors').onChange($.proxy(controller.rulesChange, controller));
+    for (var i = 0; i < cont.alive.length; i++) {
+        cont.alive[i] = false;
+        guiRulesAlive.add(cont.alive, i).name(i + ' neighbors').onChange($.proxy(cont.setRules, cont));
     }
-
     guiRulesDead = guiRules.addFolder('Dead Cells');
-    for (var i = 0; i < controller.dead.length; i++) {
-        controller.dead[i] = false;
-        guiRulesDead.add(controller.dead, i).name(i + ' neighbors').onChange($.proxy(controller.rulesChange, controller));
+    for (var i = 0; i < cont.dead.length; i++) {
+        cont.dead[i] = false;
+        guiRulesDead.add(cont.dead, i).name(i + ' neighbors').onChange($.proxy(cont.setRules, cont));
     }
 
-    var guiResolution = gui.addFolder('Surface Properties');
-    guiResolution.add(controller, 'clearScreen').name('Clear Screen');
+    var guiSurface = gui.addFolder('Surface Properties');
+    guiSurface.add(cont, 'clearScreen').name('Clear Screen');
+    guiSurface.add(cont, 'tWidth').min(cont.tMin).max(cont.tMax).step(cont.tMin).name('Width')
+                 .onChange(maintainAspectRatio).onFinishChange($.proxy(cont.updateTargets, cont));
 
-    guiResolution.add(controller, 'tWidth').min(controller.tMin).max(controller.tMax).step(controller.tMin).name('Width')
-                 .onChange(maintainAspectRatio).onFinishChange($.proxy(controller.updateTargets, controller));
-
-    guiResolution.add(controller, 'tHeight').min(controller.tMin).max(controller.tMax).step(controller.tMin).name('Height')
-                 .onChange(maintainAspectRatio).onFinishChange($.proxy(controller.updateTargets, controller));
+    guiSurface.add(cont, 'tHeight').min(cont.tMin).max(cont.tMax).step(cont.tMin).name('Height')
+                 .onChange(maintainAspectRatio).onFinishChange($.proxy(cont.updateTargets, cont));
     
-    guiResolution.add(controller, 'tAspectRatio').name('Keep Ratio');
+    guiSurface.add(cont, 'tAspectRatio').name('Keep Ratio');
 
-    onPresetChange(controller.activeRule);
+    onPresetChange(cont.activeRule);
 
     function onAnimationToggle() {
-        animate.animating = !animate.animating;
-        animate.name( animate.animating ? 'Pause' : 'Resume');
+        iAnimate.animating = !iAnimate.animating;
+        iAnimate.name( iAnimate.animating ? 'Pause' : 'Resume');
     }
 
     function onPresetChange(index){
@@ -489,35 +507,32 @@ function initGui() {
         rules = presets.getRule(index);
 
         for (var i = 0; i < rules.alive.length; i++) {
-            controller.alive[i] = rules.alive[i];
+            guiRulesAlive.__controllers[i].setValue(rules.alive[i]);
         }
         for (var i = 0; i < rules.dead.length; i++) {
-            controller.dead[i] = rules.dead[i];
+            guiRulesDead.__controllers[i].setValue(rules.dead[i]);
         }
 
-        guiRulesAlive.updateDisplays();
-        guiRulesDead.updateDisplays();
-        controller.rulesChange();
+        cont.setRules();
     }
 
     function maintainAspectRatio(value) {
 
-        if (controller.tAspectRatio) {
-            var ar = controller.tCurrentWidth / controller.tCurrentHeight
+        if (value && cont.tAspectRatio) {
+            var ar = cont.tCurrentWidth / cont.tCurrentHeight;
 
-            if (value == controller.tHeight){
-                controller.tWidth = Math.min(controller.tHeight * ar, controller.tMax);
-                controller.tHeight = (controller.tWidth == controller.tMax ? controller.tWidth / ar : value);
+            if (value == cont.tHeight) {
+                cont.tWidth = Math.min(cont.tHeight * ar, cont.tMax);
+                cont.tHeight = (cont.tWidth == cont.tMax ? cont.tWidth / ar : value);
             }
             else {
-                controller.tHeight = Math.min(controller.tWidth / ar, controller.tMax);
-                controller.tWidth = (controller.tHeight == controller.tMax ? controller.tHeight * ar : value);
+                cont.tHeight = Math.min(cont.tWidth / ar, cont.tMax);
+                cont.tWidth = (cont.tHeight == cont.tMax ? cont.tHeight * ar : value);
             }
 
-            guiResolution.updateDisplays();
+            guiSurface.updateDisplays();
         }
     }
-
 }
 
 function createProgram(gl, vertexShaderID, fragmentShaderID) {

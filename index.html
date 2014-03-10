@@ -14,6 +14,20 @@
         <script src='js/vendor/jquery.mousewheel.js'></script>
         <script src="js/vendor/dat.gui.min.js"></script>
         <script src='js/vendor/stats.js'></script>
+
+        <script type="text/javascript">
+
+            var _gaq = _gaq || [];
+            _gaq.push(['_setAccount', 'UA-48809051-1']);
+            _gaq.push(['_trackPageview']);
+
+            (function() {
+                var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+                ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+                var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+            })();
+
+        </script>
     </head>
     <body>
 
@@ -101,6 +115,7 @@
             uniform vec2 u_mouse;
             uniform vec4 u_color;
             uniform float u_paintSize;
+            uniform bool u_paintType[3]; //{ pixel, eraser, solid}
             uniform float u_random;
             uniform vec4 u_surface;
             uniform sampler2D u_buffer;
@@ -108,24 +123,43 @@
             varying vec2 v_texCoord;
 
             float rand(vec2 co) {
-                return fract(sin(dot(co.xy + u_random, vec2(12.9898,78.233))) * 43758.5453);
+                return fract(sin(dot(fract(co.xy + u_random), vec2(12.9898,78.233))) * 43758.5453);
             }
 
             void main() {
 
-                vec2 mouseSector = fract(u_surface.wz + u_mouse * (u_surface.yx - u_surface.wz));
+                vec2 mouseCoord = fract(u_surface.wz + u_mouse * (u_surface.yx - u_surface.wz));
+                vec2 distance = abs(mouseCoord - v_texCoord);
                 
-                // distance between two points on a torus    
-                vec2 distance = abs(mouseSector - v_texCoord);
-                distance = min(distance, 1. - distance);
+                if (u_paintType[0]) {
 
-                //adjust for aspect ratio
-                distance.x *= u_bufferResolution.x / u_bufferResolution.y;
+                    distance *= u_bufferResolution;
+                    
+                    if ( dot(distance, distance) < 0.25)
+                        gl_FragColor = u_color;
+                    else 
+                        gl_FragColor = texture2D(u_buffer, v_texCoord);
+                }
 
-                if ( dot(distance, distance) < u_paintSize )
-                    gl_FragColor = u_color * floor(rand(gl_FragCoord.xy / u_bufferResolution) * 2.);
-                else
-                    gl_FragColor = texture2D(u_buffer, v_texCoord);
+                else {
+
+                    distance = min(distance, 1. - distance);
+                    distance.x *= u_bufferResolution.x / u_bufferResolution.y;
+
+                    if ( dot(distance, distance) < u_paintSize) {
+
+                        if (u_paintType[1]) 
+                            gl_FragColor = vec4(0.1, 0.1, 0.1, 0);
+
+                        else if (u_paintType[2]) 
+                            gl_FragColor = u_color;
+      
+                        else 
+                            gl_FragColor = u_color * floor(rand(gl_FragCoord.xy / u_bufferResolution) * 2.);
+                    }
+                    else 
+                        gl_FragColor = texture2D(u_buffer, v_texCoord);  
+                }  
             }
 
         </script>
