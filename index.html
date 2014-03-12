@@ -31,6 +31,22 @@
     </head>
     <body>
 
+        <div id="info-container">
+            <div class="info-control">
+                <strong>Pan:</strong> Hold right click
+                <br>
+                <strong>Erase:</strong> Hold Shift and draw
+            </div>
+            <div class="info-control">
+                <strong>Zoom:</strong> Use mousewheel
+                <br>
+                <strong>Solid Brush:</strong> Hold Ctrl and draw
+            </div>
+            <br>
+            <!-- <span id="info-more-help"> Click <a href=''>here</a> for help with customizing the rules. </span> -->
+
+        </div>
+
         <canvas id='canvas' oncontextmenu="return false;"></canvas>
 
         <script id='vertex-shader' type='x-shader/x-vertex'>
@@ -155,7 +171,7 @@
                             gl_FragColor = u_color;
       
                         else 
-                            gl_FragColor = u_color * floor(rand(gl_FragCoord.xy / u_bufferResolution) * 2.);
+                            gl_FragColor = rand(gl_FragCoord.xy / u_bufferResolution) < 0.5 ? u_color : vec4(u_color.rgb * 0.5, 0);
                     }
                     else 
                         gl_FragColor = texture2D(u_buffer, v_texCoord);  

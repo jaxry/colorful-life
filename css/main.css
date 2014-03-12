@@ -62,7 +62,7 @@ textarea {
 
 
 body {
-    background-color: #000000;
+    background-color: #000;
     overflow: hidden;
     margin: 0;
     padding: 0;
@@ -71,6 +71,29 @@ body {
 #canvas {
     display: block;
 }
+
+#info-container {
+    right: 8px;
+    bottom: 0;
+    position: absolute;
+    background: rgba(30, 30, 30, 0.75);
+    border-top-left-radius: 5px;
+    border-top-right-radius: 5px;
+    color: #DDD;
+    font-size: 90%;
+}
+
+#info-container .info-control {
+    padding: 8px 8px 5px 8px;
+    float: left;
+}
+
+#info-more-help {
+    float: left;
+    text-align: center;
+    width: 100%;
+}
+
 
 
 /* ==========================================================================
