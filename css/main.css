@@ -76,24 +76,18 @@ body {
     right: 8px;
     bottom: 0;
     position: absolute;
-    background: rgba(30, 30, 30, 0.75);
+/*    background: rgba(50, 50, 50, 0.5);
     border-top-left-radius: 5px;
-    border-top-right-radius: 5px;
+    border-top-right-radius: 5px;*/
     color: #DDD;
-    font-size: 90%;
+    font-size: 85%;
+    pointer-events: none;
 }
 
 #info-container .info-control {
-    padding: 8px 8px 5px 8px;
-    float: left;
+    padding: 4px 8px;
+    display: inline-block;
 }
-
-#info-more-help {
-    float: left;
-    text-align: center;
-    width: 100%;
-}
-
 
 
 /* ==========================================================================

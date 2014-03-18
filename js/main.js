@@ -177,7 +177,7 @@ function init() {
         if (event.which === 1){
              params.paintColor = HSVtoRGB (
                 Math.random() * 360,
-                ( Math.random() * 2 < 1 ? Math.random() : Math.random() / 2 + 0.5 ),
+                ( Math.random() < 0.5 ? Math.random() : Math.random() / 2 + 0.5 ),
                 1
             );
             mouseProgram.draw();
@@ -416,6 +416,7 @@ function Controller() {
 
     this.paintSize = 5;
 
+    // this.family = 0;
     this.activeRule = 0;
     this.alive = new Array(9);
     this.dead = new Array(9);
@@ -424,7 +425,7 @@ function Controller() {
         renderTargets.initialize();
     };
 
-    this.toggleAnimation = function() {
+    this.togglePause = function() {
         params.animate = !params.animate;
     };
 
@@ -467,13 +468,18 @@ function initGui() {
         }
     };
 
+    // main folder
     gui.add(cont, 'paintSize').min(0).max(25).step(1).name('Brush Size').onFinishChange(cont.setPaintSize);
 
-    gui.add(cont, 'activeRule', presets.getNames()).name('Preset').onChange(onPresetChange);
-    var iAnimate = gui.add(cont, 'toggleAnimation').name('Pause').onChange(onAnimationToggle);
-    iAnimate.animating = true;
+    // gui.add(cont, 'family', {'Life': 0, 'Generations': 1}).name('Family');
 
-    var guiRules = gui.addFolder('Life Rules');
+    gui.add(cont, 'activeRule', presets.getNames()).name('Preset').onChange(onPresetChange);
+
+    var iAnimate = gui.add(cont, 'togglePause').name('Pause').onChange(onPauseToggle);
+    iAnimate.paused = false;
+
+    // rules folder
+    var guiRules = gui.addFolder('Customize Rules');
     guiRulesAlive = guiRules.addFolder('Alive Cells');
     for (var i = 0; i < cont.alive.length; i++) {
         cont.alive[i] = false;
@@ -485,8 +491,10 @@ function initGui() {
         guiRulesDead.add(cont.dead, i).name(i + ' neighbors').onChange($.proxy(cont.setRules, cont));
     }
 
+    // surface properties folder
     var guiSurface = gui.addFolder('Surface Properties');
     guiSurface.add(cont, 'clearScreen').name('Clear Screen');
+
     guiSurface.add(cont, 'tWidth').min(cont.tMin).max(cont.tMax).step(cont.tMin).name('Width')
                  .onChange(maintainAspectRatio).onFinishChange($.proxy(cont.updateTargets, cont));
 
@@ -497,9 +505,9 @@ function initGui() {
 
     onPresetChange(cont.activeRule);
 
-    function onAnimationToggle() {
-        iAnimate.animating = !iAnimate.animating;
-        iAnimate.name( iAnimate.animating ? 'Pause' : 'Resume');
+    function onPauseToggle() {
+        iAnimate.paused = !iAnimate.paused;
+        iAnimate.name( iAnimate.paused ? 'Resume' : 'Pause');
     }
 
     function onPresetChange(index){

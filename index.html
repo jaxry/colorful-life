@@ -42,9 +42,6 @@
                 <br>
                 <strong>Solid Brush:</strong> Hold Ctrl and draw
             </div>
-            <br>
-            <!-- <span id="info-more-help"> Click <a href=''>here</a> for help with customizing the rules. </span> -->
-
         </div>
 
         <canvas id='canvas' oncontextmenu="return false;"></canvas>
@@ -111,7 +108,7 @@
 
                 }
 
-                // // dead
+                // dead
                 else {
                     if ( texture2D(u_rules, vec2(n.a / RULES_COUNT, 0) ).g > 0. )
                         gl_FragColor = ( n.a >= 1. ? 
@@ -119,7 +116,6 @@
                                          vec4(0.5, 0.5, 0.5, 1) );
                     else 
                         gl_FragColor = texture2D(u_buffer, v_texCoord)- DECAY;
-              
                 }
             }
         </script>
@@ -131,7 +127,7 @@
             uniform vec2 u_mouse;
             uniform vec4 u_color;
             uniform float u_paintSize;
-            uniform bool u_paintType[3]; //{ pixel, eraser, solid}
+            uniform bool u_paintType[3]; //{ pixel, eraser, solid }
             uniform float u_random;
             uniform vec4 u_surface;
             uniform sampler2D u_buffer;
@@ -165,13 +161,13 @@
                     if ( dot(distance, distance) < u_paintSize) {
 
                         if (u_paintType[1]) 
-                            gl_FragColor = vec4(0.1, 0.1, 0.1, 0);
+                            gl_FragColor = vec4(0.08, 0.08, 0.08, 0);
 
                         else if (u_paintType[2]) 
                             gl_FragColor = u_color;
       
                         else 
-                            gl_FragColor = rand(gl_FragCoord.xy / u_bufferResolution) < 0.5 ? u_color : vec4(u_color.rgb * 0.5, 0);
+                            gl_FragColor = rand(gl_FragCoord.xy / u_bufferResolution) < 0.5 ? u_color : vec4(u_color.rgb * 0.7, 0);
                     }
                     else 
                         gl_FragColor = texture2D(u_buffer, v_texCoord);  
