@@ -10,10 +10,10 @@
         <link rel='stylesheet' href='css/normalize.min.css'>
         <link rel='stylesheet' href='css/main.css'>
 
-        <script src="js/vendor/dat.gui.min.js"></script>
+        <script src='js/vendor/dat.gui.min.js'></script>
         <script src='js/vendor/stats.js'></script>
 
-        <script type="text/javascript">
+        <script type='text/javascript'>
 
             var _gaq = _gaq || [];
             _gaq.push(['_setAccount', 'UA-48809051-1']);
@@ -29,20 +29,40 @@
     </head>
     <body>
 
-        <div id="info-container">
-            <div class="info-control">
-                <strong>Pan:</strong> Hold right click
-                <br>
-                <strong>Erase:</strong> Hold Shift and draw
-            </div>
-            <div class="info-control">
-                <strong>Zoom:</strong> Use mousewheel
-                <br>
-                <strong>Solid Brush:</strong> Hold Ctrl and draw
+        <div id='overlay'>
+            <h1> Draw something. </h1>
+            <div id='controls'>
+                <span>
+                    <strong>Pan:</strong> Hold right click
+                    <br>
+                    <strong>Eraser:</strong> Hold Shift and draw
+                </span>
+                <span>
+                    <strong>Zoom:</strong> Use mousewheel
+                    <br>
+                    <strong>Solid Brush:</strong> Hold Ctrl and draw
+                </span>
             </div>
         </div>
 
-        <canvas id='canvas' oncontextmenu="return false;"></canvas>
+        <canvas id='canvas'></canvas>
+
+        <script type='text/javascript'>
+        
+            var canvas = document.getElementById('canvas');
+            
+            canvas.oncontextmenu = function() {
+                return false;
+            };
+
+            function hideOverlay(e) {
+                if (e.which === 1) {
+                    document.getElementById('overlay').classList.add('hidden');
+                    e.target.removeEventListener(e.type, arguments.callee);
+                }
+            }
+            canvas.addEventListener('mousedown', hideOverlay);
+        </script>
 
         <script id='vertex-shader' type='x-shader/x-vertex'>
             attribute vec2 a_position;
@@ -70,7 +90,6 @@
             varying vec2 v_texCoord;
 
             #define RULES_COUNT 8.0
-
             #define FIRST_DECAY vec4( vec3(0.2), 1)
             #define DECAY vec4( vec3(0.002), 1)
 
@@ -110,8 +129,8 @@
                 else {
                     if ( texture2D(u_rules, vec2(n.a / RULES_COUNT, 0) ).g > 0. )
                         gl_FragColor = ( n.a >= 1. ? 
-                                         n / vec4(n.a, n.a, n.a, 1) :
-                                         vec4(0.5, 0.5, 0.5, 1) );
+                                         n / vec4(n.a, n.a, n.a, 1):
+                                         vec4(0.9, 0.9, 0.9, 1) );
                     else 
                         gl_FragColor = texture2D(u_buffer, v_texCoord)- DECAY;
                 }
@@ -145,7 +164,7 @@
 
                     distance *= u_bufferResolution;
                     
-                    if ( dot(distance, distance) < 0.25)
+                    if ( dot(distance, distance) < 0.25 )
                         gl_FragColor = u_color;
                     else 
                         gl_FragColor = texture2D(u_buffer, v_texCoord);
@@ -156,7 +175,7 @@
                     distance = min(distance, 1. - distance);
                     distance.x *= u_bufferResolution.x / u_bufferResolution.y;
 
-                    if ( dot(distance, distance) < u_paintSize) {
+                    if ( dot(distance, distance) < u_paintSize ) {
 
                         if (u_paintType[1]) 
                             gl_FragColor = vec4(0.08, 0.08, 0.08, 0);

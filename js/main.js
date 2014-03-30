@@ -102,11 +102,11 @@ function Surface() {
 
     this.setPaintSize = function(value, power, scale) {
         this.paintSize = Math.pow(value, 3) / 1e+6;
-    }
+    };
 
     this.getPaintSize = function() {
         return Math.pow(Math.min(this.width(), this.height()), 2) * this.paintSize;
-    }
+    };
 }
 
 var gl, renderTargets;
@@ -132,7 +132,7 @@ function init() {
 
         screenWidth: window.innerWidth,
         screenHeight: window.innerHeight,
-        zoomStep: 8,
+        zoomStep: 4,
         zoomLevel: 0,
         animate: true,
 
@@ -145,6 +145,10 @@ function init() {
 
     var canvas =  document.getElementById('canvas');
     gl = canvas.getContext('webgl');
+
+    if (!gl){
+        alert('Failed to load WebGL!');
+    }
 
     renderTargets = new RenderTargets(gl);
     renderTargets.initialize(params.screenWidth, params.screenHeight);
@@ -177,11 +181,11 @@ function init() {
         if (e.which === 1){
              params.paintColor = HSVtoRGB (
                 Math.random() * 360,
-                ( Math.random() < 0.5 ? Math.random() : Math.random() / 2 + 0.5 ),
+                Math.random() < 0.5 ? Math.random() : Math.random() / 2 + 0.5,
                 1
             );
             mouseProgram.draw();
-            canvas.addEventListener('mousemove', mouseProgram.draw)
+            canvas.addEventListener('mousemove', mouseProgram.draw);
         }
         //right click
         else if (e.which === 3){
@@ -226,10 +230,10 @@ function init() {
 
     function zoomHandler(wheel) {
 
-        if ( (wheel == -1 && params.zoomLevel > 0) || (wheel == 1 && params.zoomLevel < params.zoomStep * 5) ) {
+        if ( (wheel == -1 && params.zoomLevel > 0) || (wheel == 1 && params.zoomLevel < params.zoomStep * 10) ) {
             
             params.zoomLevel += wheel;
-            var scale =  1 / Math.exp( (params.zoomLevel + params.zoomStep) / params.zoomStep );
+            var scale = 0.5 * Math.pow(2, -params.zoomLevel / params.zoomStep);
 
             var mx = params.mouseX - 0.5;
             var my = params.mouseY - 0.5;
@@ -477,8 +481,6 @@ function initGui() {
 
     // main folder
     gui.add(cont, 'paintSize').min(0).max(25).step(1).name('Brush Size').onFinishChange(cont.setPaintSize);
-
-    // gui.add(cont, 'family', {'Life': 0, 'Generations': 1}).name('Family');
 
     var iPresets = gui.add(cont, 'activeRule');
     iPresets.options(presets.getNames()).name('Preset').onChange(onPresetChange);
