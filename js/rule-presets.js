@@ -62,10 +62,6 @@ function RulePresets() {
             rule: '23/36'
         },
         {
-            name: 'InverseLife',
-            rule: '34678/0123478'
-        },
-        {
             name: 'Live Free or Die',
             rule: '0/2'
         },

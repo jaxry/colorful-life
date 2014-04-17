@@ -58,7 +58,7 @@
             function hideOverlay(e) {
                 if (e.which === 1) {
                     document.getElementById('overlay').classList.add('hidden');
-                    e.target.removeEventListener(e.type, arguments.callee);
+                    e.target.removeEventListener(e.type, hideOverlay);
                 }
             }
             canvas.addEventListener('mousedown', hideOverlay);
@@ -98,14 +98,10 @@
             vec4 isAlive(int x, int y) {
                 vec4 pixel = texture2D(u_buffer, fract(v_texCoord + vec2(x, y) * onePixel));
 
-                if (pixel.a == 1.) 
-                    return pixel;
-                else 
-                    return vec4(0, 0, 0, 0);
+                return mix(vec4(0, 0, 0, 0), pixel, pixel.a);
             }
 
             void main() {
-
 
                 vec4 n = isAlive(0, 1)
                        + isAlive(1, 1)
@@ -118,21 +114,16 @@
 
                 // alive
                 if (isAlive(0, 0).a == 1.) {
-                    if ( texture2D(u_rules, vec2(n.a / RULES_COUNT, 0) ).r > 0. )
-                        gl_FragColor = texture2D(u_buffer, v_texCoord);
-                    else
-                        gl_FragColor = texture2D(u_buffer, v_texCoord) - FIRST_DECAY;
-
+                    float state = texture2D(u_rules, vec2(n.a / RULES_COUNT, 0)).r;
+                    gl_FragColor = texture2D(u_buffer, v_texCoord) - (1.0 - state) * FIRST_DECAY;
                 }
 
                 // dead
                 else {
-                    if ( texture2D(u_rules, vec2(n.a / RULES_COUNT, 0) ).g > 0. )
-                        gl_FragColor = ( n.a >= 1. ? 
-                                         n / vec4(n.a, n.a, n.a, 1):
-                                         vec4(0.9, 0.9, 0.9, 1) );
-                    else 
-                        gl_FragColor = texture2D(u_buffer, v_texCoord)- DECAY;
+                    float state = texture2D(u_rules, vec2(n.a / RULES_COUNT, 0) ).g;
+                    gl_FragColor = mix(texture2D(u_buffer, v_texCoord) - DECAY, 
+                                       n / vec4(n.a, n.a, n.a, 1),
+                                       state);
                 }
             }
         </script>
@@ -144,7 +135,9 @@
             uniform vec2 u_mouse;
             uniform vec4 u_color;
             uniform float u_paintSize;
-            uniform bool u_paintType[3]; //{ pixel, eraser, solid }
+            uniform bool u_paintErase;
+            uniform bool u_paintSolid;
+            uniform bool u_paintPixel;
             uniform float u_random;
             uniform vec4 u_surface;
             uniform sampler2D u_buffer;
@@ -160,12 +153,12 @@
                 vec2 mouseCoord = fract(u_surface.wz + u_mouse * (u_surface.yx - u_surface.wz));
                 vec2 distance = abs(mouseCoord - v_texCoord);
                 
-                if (u_paintType[0]) {
+                if (u_paintPixel) {
 
                     distance *= u_bufferResolution;
                     
                     if ( dot(distance, distance) < 0.25 )
-                        gl_FragColor = u_color;
+                        gl_FragColor = u_paintErase ? vec4(0, 0, 0, 0) : u_color;
                     else 
                         gl_FragColor = texture2D(u_buffer, v_texCoord);
                 }
@@ -177,10 +170,10 @@
 
                     if ( dot(distance, distance) < u_paintSize ) {
 
-                        if (u_paintType[1]) 
+                        if (u_paintErase) 
                             gl_FragColor = vec4(0.08, 0.08, 0.08, 0);
 
-                        else if (u_paintType[2]) 
+                        else if (u_paintSolid) 
                             gl_FragColor = u_color;
       
                         else 

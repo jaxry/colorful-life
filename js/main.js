@@ -1,5 +1,7 @@
 
-(function($) { //scoping function to contain global variables
+(function() { //scoping function to contain global variables
+
+'use strict';
 
 main();
 
@@ -33,7 +35,7 @@ function RenderTargets(gl) {
         gl.bindTexture(gl.TEXTURE_2D, texture);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
 
@@ -73,13 +75,13 @@ function Surface() {
 
     this.computeAspectRatio = function(screenW, screenH, bufferW, bufferH) {
 
-        var s = screenW / screenH;
-        var b = bufferW / bufferH;
+        var s = screenW / screenH, 
+            b = bufferW / bufferH;
 
         if (s < b){
 
-            var center = (this.left + this.right) / 2;
-            var w = this.height() * (s / b);
+            var center = (this.left + this.right) / 2,
+                w = this.height() * (s / b);
             
             this.right = center + w / 2;
             this.left = center - w / 2;
@@ -89,8 +91,8 @@ function Surface() {
         }
         else {
 
-            var center = (this.bottom + this.top) / 2;
-            var h = this.width() * (b / s);
+            var center = (this.bottom + this.top) / 2,
+                h = this.width() * (b / s);
             
             this.top = center + h / 2;
             this.bottom = center - h / 2;
@@ -100,7 +102,7 @@ function Surface() {
         }
     };
 
-    this.setPaintSize = function(value, power, scale) {
+    this.setPaintSize = function(value) {
         this.paintSize = Math.pow(value, 3) / 1e+6;
     };
 
@@ -109,10 +111,10 @@ function Surface() {
     };
 }
 
-var gl, renderTargets;
-var cellProgram, mouseProgram, screenProgram;
-var params, surface;
-var statsUi;
+var gl, renderTargets,
+    cellProgram, mouseProgram, screenProgram,
+    params, surface,
+    statsUi;
 
 function main() {
 
@@ -122,21 +124,22 @@ function main() {
 }
 
 function init() {
-    
+
     surface = new Surface();
     params = {
         mouseX: 0,
         mouseY: 0,
-        mouseLastX: 0,
-        mouseLastY: 0,
 
         screenWidth: window.innerWidth,
         screenHeight: window.innerHeight,
         zoomStep: 4,
         zoomLevel: 0,
-        animate: true,
+        
+        pauseCells: false,
+        pauseOnDraw: false,
+        pauseButton: false,
 
-        paintSize: 0,
+        paintSize: null,
         paintColor: null,
         paintErase: false,
         paintSolid: false,
@@ -147,7 +150,7 @@ function init() {
     gl = canvas.getContext('webgl');
 
     if (!gl){
-        alert('Failed to load WebGL!');
+        alert('Could not load WebGL');
     }
 
     renderTargets = new RenderTargets(gl);
@@ -184,14 +187,18 @@ function init() {
                 Math.random() < 0.5 ? Math.random() : Math.random() / 2 + 0.5,
                 1
             );
+
+            if(params.pauseOnDraw) {
+                params.pauseCells = true;
+            }
             mouseProgram.draw();
             canvas.addEventListener('mousemove', mouseProgram.draw);
         }
         //right click
         else if (e.which === 3){
 
-            params.mouseLastX = params.mouseX;
-            params.mouseLastY = params.mouseY;
+            panningHandler.mouseLastX = params.mouseX;
+            panningHandler.mouseLastY = params.mouseY;
             canvas.addEventListener('mousemove', panningHandler);
         }
     };
@@ -200,6 +207,10 @@ function init() {
 
         //left click
         if (e.which === 1) {
+
+            if(params.pauseOnDraw && !params.pauseButton) {
+                params.pauseCells = false;
+            }
             canvas.removeEventListener('mousemove', mouseProgram.draw);
         }
         //right click
@@ -235,19 +246,19 @@ function init() {
             params.zoomLevel += wheel;
             var scale = 0.5 * Math.pow(2, -params.zoomLevel / params.zoomStep);
 
-            var mx = params.mouseX - 0.5;
-            var my = params.mouseY - 0.5;
+            var mx = params.mouseX - 0.5,
+                my = params.mouseY - 0.5,
 
-            var width = surface.width();
-            var height = surface.height();
+                width = surface.width(),
+                height = surface.height();
 
             surface.top += height * my;
             surface.right += width * mx;
             surface.bottom += height * my;
             surface.left += width * mx;
 
-            var centerX = (surface.left + surface.right) / 2;
-            var centerY = (surface.bottom + surface.top) / 2;
+            var centerX = (surface.left + surface.right) / 2,
+                centerY = (surface.bottom + surface.top) / 2;
 
             surface.top = centerY + scale * surface.verticalAspectRatio;
             surface.right = centerX + scale * surface.horizontalAspectRatio;
@@ -268,19 +279,19 @@ function init() {
 
     function panningHandler() {
 
-        var dx = params.mouseLastX - params.mouseX;
-        var dy = params.mouseLastY - params.mouseY;
-
-        var width = surface.width(); 
-        var height = surface.height();
+        var dx = panningHandler.mouseLastX - params.mouseX,
+            dy = panningHandler.mouseLastY - params.mouseY,
+            
+            width = surface.width(),
+            height = surface.height();
 
         surface.top += height * dy;
         surface.right += width * dx;
         surface.bottom += height * dy;
         surface.left += width * dx;
 
-        params.mouseLastX = params.mouseX;
-        params.mouseLastY = params.mouseY;
+        panningHandler.mouseLastX = params.mouseX;
+        panningHandler.mouseLastY = params.mouseY;
 
         surface.normalize();
     }
@@ -288,7 +299,7 @@ function init() {
 
 function animate() {
 
-    if (params.animate) {
+    if (!params.pauseCells) {
         cellProgram.draw();
     }
     screenProgram.draw();
@@ -301,81 +312,81 @@ function initCellProgram() {
     var program = createProgram(gl, 'vertex-shader', 'cell-iteration-shader');
 
     var locBufferResolution = gl.getUniformLocation(program, 'u_bufferResolution');
-    var locTexture          = gl.getUniformLocation(program, 'u_buffer');
-    var locRules            = gl.getUniformLocation(program, 'u_rules');
 
     // static uniforms
     gl.useProgram(program);
-    gl.uniform1i(locTexture, 0);
-    gl.uniform1i(locRules, 2)
+    gl.uniform1i(gl.getUniformLocation(program, 'u_buffer'), 0);
+    gl.uniform1i(gl.getUniformLocation(program, 'u_rules'), 2);
     gl.useProgram(null);
 
-    program.setRules = function(alive, dead) {
+    return {
+        draw: function() {
 
-        var data = [];
-        for (var i = 0; i < alive.length; i++){
-            data.push(alive[i] * 255, dead[i] * 255, 0, 0);
+            gl.viewport(0, 0, renderTargets.width, renderTargets.height);
+            renderTargets.swap();
+
+            gl.useProgram(program);
+            gl.uniform2f(locBufferResolution, renderTargets.width, renderTargets.height);
+            gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
+        },
+
+        setRules: function(alive, dead) {
+
+            var data = [];
+            for (var i = 0; i < alive.length; i++){
+                data.push(alive[i] * 255, dead[i] * 255, 0, 0);
+            }
+            var texture = gl.createTexture();
+            gl.activeTexture(gl.TEXTURE2);
+            gl.bindTexture(gl.TEXTURE_2D, texture);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, alive.length, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(data));
         }
-        var texture = gl.createTexture();
-        gl.activeTexture(gl.TEXTURE2);
-        gl.bindTexture(gl.TEXTURE_2D, texture);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, alive.length, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(data));
     };
-
-
-    program.draw = function() {
-
-        gl.viewport(0, 0, renderTargets.width, renderTargets.height);
-        renderTargets.swap();
-
-        gl.useProgram(program);
-        gl.uniform2f(locBufferResolution, renderTargets.width, renderTargets.height);
-        gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
-    };
-
-    return program;
 }
 
 function initMouseProgram() {
 
     var program = createProgram(gl, 'vertex-shader', 'mouse-shader');
 
-    var locBufferResolution = gl.getUniformLocation(program, 'u_bufferResolution');
-    var locMouse            = gl.getUniformLocation(program, 'u_mouse');
-    var locPaintSize        = gl.getUniformLocation(program, 'u_paintSize');
-    var locColor            = gl.getUniformLocation(program, 'u_color');
-    var locPaintType        = gl.getUniformLocation(program, 'u_paintType');
-    var locRandom           = gl.getUniformLocation(program, 'u_random');
-    var locSurface          = gl.getUniformLocation(program, 'u_surface');
-    var locTexture          = gl.getUniformLocation(program, 'u_buffer');
+    var locBufferResolution = gl.getUniformLocation(program, 'u_bufferResolution'),
+        locMouse            = gl.getUniformLocation(program, 'u_mouse'),
+        locPaintSize        = gl.getUniformLocation(program, 'u_paintSize'),
+        locColor            = gl.getUniformLocation(program, 'u_color'),
+        locPaintErase       = gl.getUniformLocation(program, 'u_paintErase'),
+        locPaintSolid       = gl.getUniformLocation(program, 'u_paintSolid'),
+        locPaintPixel       = gl.getUniformLocation(program, 'u_paintPixel'),
+        locRandom           = gl.getUniformLocation(program, 'u_random'),
+        locSurface          = gl.getUniformLocation(program, 'u_surface');
 
     // static uniforms
     gl.useProgram(program);
-    gl.uniform1i(locTexture, 0);
+    gl.uniform1i(gl.getUniformLocation(program, 'u_buffer'), 0);
     gl.useProgram(null);
 
-    program.draw = function() {
+    return {
+        draw: function() {
 
-        gl.viewport(0, 0, renderTargets.width, renderTargets.height);
-        renderTargets.swap();
+            gl.viewport(0, 0, renderTargets.width, renderTargets.height);
+            renderTargets.swap();
 
-        gl.useProgram(program);
-        gl.uniform2f(locBufferResolution, renderTargets.width, renderTargets.height);
-        gl.uniform2f(locMouse, params.mouseX, params.mouseY);
-        gl.uniform4f(locColor, params.paintColor.r, params.paintColor.g, params.paintColor.b, 1.0);
-        gl.uniform1iv(locPaintType, [params.paintPixel, params.paintErase, params.paintSolid]);
-        gl.uniform1f(locPaintSize, surface.getPaintSize());
-        gl.uniform1f(locRandom, Math.random());
-        gl.uniform4f(locSurface, surface.top, surface.right, surface.bottom, surface.left);
+            gl.useProgram(program);
+            gl.uniform2f(locBufferResolution, renderTargets.width, renderTargets.height);
+            gl.uniform2f(locMouse, params.mouseX, params.mouseY);
+            gl.uniform4f(locColor, params.paintColor.r, params.paintColor.g, params.paintColor.b, 1.0);
+            gl.uniform1i(locPaintErase, params.paintErase);
+            gl.uniform1i(locPaintSolid, params.paintSolid);
+            gl.uniform1i(locPaintPixel, params.paintPixel);
+            gl.uniform1f(locPaintSize, surface.getPaintSize());
+            gl.uniform1f(locRandom, Math.random());
+            gl.uniform4f(locSurface, surface.top, surface.right, surface.bottom, surface.left);
 
-        gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);  
+            gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);  
+        }
     };
-
-    return program;
 }
 
 function initScreenProgram() {
@@ -383,11 +394,10 @@ function initScreenProgram() {
     var program = createProgram(gl, 'vertex-shader', 'screen-shader');
 
     var locSurface = gl.getUniformLocation(program, 'u_surface');
-    var locTexture = gl.getUniformLocation(program, 'u_screenBuffer');
 
     // static uniforms
     gl.useProgram(program);
-    gl.uniform1i(locTexture, 1);
+    gl.uniform1i(gl.getUniformLocation(program, 'u_screenBuffer'), 1);
     gl.useProgram(null);
 
     var locVertexCoords = gl.getAttribLocation(program, 'a_position');
@@ -400,28 +410,28 @@ function initScreenProgram() {
         1, 1,
         1, 0]), gl.STATIC_DRAW);
 
-    program.draw = function() {
+    return {
+        draw: function() {
 
-        gl.viewport(0, 0, params.screenWidth, params.screenHeight);
-        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+            gl.viewport(0, 0, params.screenWidth, params.screenHeight);
+            gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
-        gl.useProgram(screenProgram);
-        gl.activeTexture(gl.TEXTURE1);
-        gl.bindTexture(gl.TEXTURE_2D, renderTargets.front.texture);
-        gl.uniform4f(locSurface, surface.top, surface.right, surface.bottom, surface.left);
+            gl.useProgram(program);
+            gl.activeTexture(gl.TEXTURE1);
+            gl.bindTexture(gl.TEXTURE_2D, renderTargets.front.texture);
+            gl.uniform4f(locSurface, surface.top, surface.right, surface.bottom, surface.left);
 
-        gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+            gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        }
     };
-
-    return program;
 }
 
 function Controller() {
         
     this.tWidth = renderTargets.width;
     this.tHeight = renderTargets.height;
-    this.tCurrentWidth = this.tWidth;
-    this.tCurrentHeight = this.tHeight;
     this.tMax = 10000;
     this.tMin = 250;
     this.tAspectRatio = true;
@@ -437,7 +447,8 @@ function Controller() {
     };
 
     this.togglePause = function() {
-        params.animate = !params.animate;
+        params.pauseCells = !params.pauseCells;
+        params.pauseButton = !params.pauseButton;
     };
 
     this.setRules = function() {
@@ -458,6 +469,7 @@ function Controller() {
         params.paintPixel = (value === 0 ? true : false);
         surface.setPaintSize(value);
     };
+
     this.setPaintSize(this.paintSize);
 }
 
@@ -469,9 +481,9 @@ function initGui() {
     statsUi.domElement.style.top = '0px';
     document.body.appendChild(statsUi.domElement);
 
-    var gui = new dat.GUI();
-    var presets = new RulePresets();
-    var cont = new Controller();
+    var gui = new dat.GUI(),
+        presets = new RulePresets(),
+        cont = new Controller();
 
     dat.GUI.prototype.updateDisplays = function() {
         for (var i in this.__controllers) {
@@ -485,18 +497,20 @@ function initGui() {
     var iPresets = gui.add(cont, 'activeRule');
     iPresets.options(presets.getNames()).name('Preset').onChange(onPresetChange);
 
+    gui.add(params, 'pauseOnDraw').name('Pause On Draw');
+
     var iAnimate = gui.add(cont, 'togglePause').name('Pause').onChange(onPauseToggle);
-    iAnimate.paused = false;
 
     // rules folder
     var guiRules = gui.addFolder('Customize Rules');
-    guiRulesAlive = guiRules.addFolder('Alive Cells');
+    var guiRulesAlive = guiRules.addFolder('Alive Cells');
     for (var i = 0; i < cont.alive.length; i++) {
         cont.alive[i] = false;
         guiRulesAlive.add(cont.alive, i).name(i + ' neighbors').onChange(cont.setRules.bind(cont));
     }
-    guiRulesDead = guiRules.addFolder('Dead Cells');
-    for (var i = 0; i < cont.dead.length; i++) {
+    var guiRulesDead = guiRules.addFolder('Dead Cells');
+    cont.dead[0] = false;
+    for (var i = 1; i < cont.dead.length; i++) {
         cont.dead[i] = false;
         guiRulesDead.add(cont.dead, i).name(i + ' neighbors').onChange(cont.setRules.bind(cont));
     }
@@ -506,29 +520,30 @@ function initGui() {
     guiSurface.add(cont, 'clearScreen').name('Clear Screen');
 
     guiSurface.add(cont, 'tWidth').min(cont.tMin).max(cont.tMax).step(cont.tMin).name('Width')
-                 .onChange(maintainAspectRatio).onFinishChange(cont.updateTargets.bind(cont));
+              .onChange(maintainAspectRatio).onFinishChange(onSurfaceDimensionChanged);
 
     guiSurface.add(cont, 'tHeight').min(cont.tMin).max(cont.tMax).step(cont.tMin).name('Height')
-                 .onChange(maintainAspectRatio).onFinishChange(cont.updateTargets.bind(cont));
+              .onChange(maintainAspectRatio).onFinishChange(onSurfaceDimensionChanged);
     
     guiSurface.add(cont, 'tAspectRatio').name('Keep Ratio');
+
+    var currentAspectRatio = cont.tWidth / cont.tHeight;
 
     onPresetChange(cont.activeRule);
 
     function onPauseToggle() {
-        iAnimate.paused = !iAnimate.paused;
-        iAnimate.name( iAnimate.paused ? 'Resume' : 'Pause');
+        iAnimate.name(iAnimate.__li.textContent == 'Pause' ? 'Resume' : 'Pause');
     }
 
     function onPresetChange(index){
 
-        rules = presets.getRule(index);
+        var rules = presets.getRule(index);
 
         for (var i = 0; i < rules.alive.length; i++) {
             guiRulesAlive.__controllers[i].setValue(rules.alive[i]);
         }
-        for (var i = 0; i < rules.dead.length; i++) {
-            guiRulesDead.__controllers[i].setValue(rules.dead[i]);
+        for (var i = 0; i < rules.dead.length - 1; i++) {
+            guiRulesDead.__controllers[i].setValue(rules.dead[i + 1]);
         }
 
         cont.setRules();
@@ -536,8 +551,8 @@ function initGui() {
 
     function maintainAspectRatio(value) {
 
-        if (value && cont.tAspectRatio) {
-            var ar = cont.tCurrentWidth / cont.tCurrentHeight;
+        if (cont.tAspectRatio) {
+            var ar = currentAspectRatio;
 
             if (value == cont.tHeight) {
                 cont.tWidth = Math.min(cont.tHeight * ar, cont.tMax);
@@ -550,6 +565,11 @@ function initGui() {
 
             guiSurface.updateDisplays();
         }
+    }
+
+    function onSurfaceDimensionChanged() {
+        currentAspectRatio = cont.tWidth / cont.tHeight;
+        cont.updateTargets();
     }
 }
 
@@ -573,9 +593,9 @@ function createProgram(gl, vertexShaderID, fragmentShaderID) {
 
 function HSVtoRGB(h, s, v){
 
-    var c = v * s;
-    var hp = h / 60;
-    var x = c * (1 - Math.abs( hp % 2 - 1 ));
+    var c = v * s,
+        hp = h / 60,
+        x = c * (1 - Math.abs( hp % 2 - 1 ));
 
     var r, g, b;
 
