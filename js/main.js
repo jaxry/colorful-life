@@ -102,12 +102,12 @@ function Surface() {
         }
     };
 
-    this.setPaintSize = function(value) {
-        this.paintSize = Math.pow(value, 3) / 1e+6;
+    this.setBrushSize = function(value) {
+        this.brushSize = Math.pow(value, 3) / 1e+5;
     };
 
-    this.getPaintSize = function() {
-        return Math.pow(Math.min(this.width(), this.height()), 2) * this.paintSize;
+    this.getBrushSize = function() {
+        return Math.pow(Math.min(this.width(), this.height()), 2) * this.brushSize;
     };
 }
 
@@ -139,11 +139,15 @@ function init() {
         pauseOnDraw: false,
         pauseButton: false,
 
-        paintSize: null,
+        brushSize: null,
+        brushErase: false,
+        brushSolid: false,
+        brushPixel: false,
+
         paintColor: null,
-        paintErase: false,
-        paintSolid: false,
-        paintPixel : false
+        paintSaturation: 0.9,
+        paintColorDecay: 0.2
+
     };
 
     var canvas =  document.getElementById('canvas');
@@ -182,11 +186,11 @@ function init() {
 
         //left click
         if (e.which === 1){
-             params.paintColor = HSVtoRGB (
-                Math.random() * 360,
-                Math.random() < 0.5 ? Math.random() : Math.random() / 2 + 0.5,
-                1
-            );
+            params.paintColor = {
+                h: Math.random(),
+                s: params.paintSaturation,
+                v: 1
+            };
 
             if(params.pauseOnDraw) {
                 params.pauseCells = true;
@@ -221,14 +225,14 @@ function init() {
 
     window.onkeydown = function(e) {
 
-        if (e.which === 16) params.paintErase = true; //shift key
-        if (e.which === 17) params.paintSolid = true; //ctrl key
+        if (e.which === 16) params.brushErase = true; //shift key
+        if (e.which === 17) params.brushSolid = true; //ctrl key
     };
 
     window.onkeyup = function(e) {
 
-        if (e.which === 16) params.paintErase = false; //shift key
-        if (e.which === 17) params.paintSolid = false; //ctrl key
+        if (e.which === 16) params.brushErase = false; //shift key
+        if (e.which === 17) params.brushSolid = false; //ctrl key
     };
 
     canvas.addEventListener('mousewheel', function(e) {
@@ -311,7 +315,8 @@ function initCellProgram() {
 
     var program = createProgram(gl, 'vertex-shader', 'cell-iteration-shader');
 
-    var locBufferResolution = gl.getUniformLocation(program, 'u_bufferResolution');
+    var locBufferResolution = gl.getUniformLocation(program, 'u_bufferResolution'),
+        locColorDecay       = gl.getUniformLocation(program, 'u_colorDecay');
 
     // static uniforms
     gl.useProgram(program);
@@ -327,6 +332,7 @@ function initCellProgram() {
 
             gl.useProgram(program);
             gl.uniform2f(locBufferResolution, renderTargets.width, renderTargets.height);
+            gl.uniform1f(locColorDecay, params.paintColorDecay);
             gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
         },
 
@@ -354,11 +360,12 @@ function initMouseProgram() {
 
     var locBufferResolution = gl.getUniformLocation(program, 'u_bufferResolution'),
         locMouse            = gl.getUniformLocation(program, 'u_mouse'),
-        locPaintSize        = gl.getUniformLocation(program, 'u_paintSize'),
+        locBrushSize        = gl.getUniformLocation(program, 'u_brushSize'),
         locColor            = gl.getUniformLocation(program, 'u_color'),
-        locPaintErase       = gl.getUniformLocation(program, 'u_paintErase'),
-        locPaintSolid       = gl.getUniformLocation(program, 'u_paintSolid'),
-        locPaintPixel       = gl.getUniformLocation(program, 'u_paintPixel'),
+        locBrushErase       = gl.getUniformLocation(program, 'u_brushErase'),
+        locBrushSolid       = gl.getUniformLocation(program, 'u_brushSolid'),
+        locBrushPixel       = gl.getUniformLocation(program, 'u_brushPixel'),
+        locColorDecay       = gl.getUniformLocation(program, 'u_colorDecay'),
         locRandom           = gl.getUniformLocation(program, 'u_random'),
         locSurface          = gl.getUniformLocation(program, 'u_surface');
 
@@ -376,11 +383,12 @@ function initMouseProgram() {
             gl.useProgram(program);
             gl.uniform2f(locBufferResolution, renderTargets.width, renderTargets.height);
             gl.uniform2f(locMouse, params.mouseX, params.mouseY);
-            gl.uniform4f(locColor, params.paintColor.r, params.paintColor.g, params.paintColor.b, 1.0);
-            gl.uniform1i(locPaintErase, params.paintErase);
-            gl.uniform1i(locPaintSolid, params.paintSolid);
-            gl.uniform1i(locPaintPixel, params.paintPixel);
-            gl.uniform1f(locPaintSize, surface.getPaintSize());
+            gl.uniform4f(locColor, params.paintColor.h, params.paintColor.s, params.paintColor.v, 1.0);
+            gl.uniform1i(locBrushErase, params.brushErase);
+            gl.uniform1i(locBrushSolid, params.brushSolid);
+            gl.uniform1i(locBrushPixel, params.brushPixel);
+            gl.uniform1f(locBrushSize, surface.getBrushSize());
+            gl.uniform1f(locColorDecay, params.paintColorDecay);
             gl.uniform1f(locRandom, Math.random());
             gl.uniform4f(locSurface, surface.top, surface.right, surface.bottom, surface.left);
 
@@ -436,7 +444,7 @@ function Controller() {
     this.tMin = 250;
     this.tAspectRatio = true;
 
-    this.paintSize = 5;
+    this.brushSize = 4;
 
     this.activeRule = 0;
     this.alive = new Array(9);
@@ -464,13 +472,13 @@ function Controller() {
         surface.computeAspectRatio(params.screenWidth, params.screenHeight, this.tWidth, this.tHeight);
     };
 
-    this.setPaintSize = function(value) {
+    this.setBrushSize = function(value) {
         
-        params.paintPixel = (value === 0 ? true : false);
-        surface.setPaintSize(value);
+        params.brushPixel = (value === 0 ? true : false);
+        surface.setBrushSize(value);
     };
 
-    this.setPaintSize(this.paintSize);
+    this.setBrushSize(this.brushSize);
 }
 
 function initGui() {
@@ -492,7 +500,9 @@ function initGui() {
     };
 
     // main folder
-    gui.add(cont, 'paintSize').min(0).max(25).step(1).name('Brush Size').onFinishChange(cont.setPaintSize);
+    gui.add(cont, 'brushSize', 0, 20).step(1).name('Brush Size').onFinishChange(cont.setBrushSize);
+    gui.add(params, 'paintColorDecay', 0, 1).name('Color Decay');
+    gui.add(params, 'paintSaturation', 0, 1).name('Paint Saturation');
 
     var iPresets = gui.add(cont, 'activeRule');
     iPresets.options(presets.getNames()).name('Preset').onChange(onPresetChange);
@@ -519,10 +529,10 @@ function initGui() {
     var guiSurface = gui.addFolder('Surface Properties');
     guiSurface.add(cont, 'clearScreen').name('Clear Screen');
 
-    guiSurface.add(cont, 'tWidth').min(cont.tMin).max(cont.tMax).step(cont.tMin).name('Width')
+    guiSurface.add(cont, 'tWidth', cont.tMin, cont.tMax).step(cont.tMin).name('Width')
               .onChange(maintainAspectRatio).onFinishChange(onSurfaceDimensionChanged);
 
-    guiSurface.add(cont, 'tHeight').min(cont.tMin).max(cont.tMax).step(cont.tMin).name('Height')
+    guiSurface.add(cont, 'tHeight', cont.tMin, cont.tMax).step(cont.tMin).name('Height')
               .onChange(maintainAspectRatio).onFinishChange(onSurfaceDimensionChanged);
     
     guiSurface.add(cont, 'tAspectRatio').name('Keep Ratio');
@@ -589,29 +599,6 @@ function createProgram(gl, vertexShaderID, fragmentShaderID) {
     gl.linkProgram(program);
 
     return program;
-}
-
-function HSVtoRGB(h, s, v){
-
-    var c = v * s,
-        hp = h / 60,
-        x = c * (1 - Math.abs( hp % 2 - 1 ));
-
-    var r, g, b;
-
-    switch ( Math.floor(hp) ) {
-        case 0: r = c, g = x, b = 0; break;
-        case 1: r = x, g = c, b = 0; break;
-        case 2: r = 0, g = c, b = x; break;
-        case 3: r = 0, g = x, b = c; break;
-        case 4: r = x, g = 0, b = c; break;
-        case 5: r = c, g = 0, b = x; break;
-    }
-
-    var m = v - c;
-    r += m, g += m, b += m;
-    
-    return {'r': r, 'g': g, 'b': b};
 }
 
 })();
