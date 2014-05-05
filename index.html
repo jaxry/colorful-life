@@ -90,6 +90,7 @@
 
             varying vec2 v_texCoord;
 
+            #define TWO_PI 6.28318530718
             #define RULES_COUNT 8.0
             #define DECAY vec4(0, 0, 0.002, 1)
             vec4 firstDecay = vec4(0, -1.0, u_colorDecay, 1.0);
@@ -98,7 +99,9 @@
             vec4 isAlive(int x, int y) {
                 vec4 pixel = texture2D(u_buffer, fract(v_texCoord + vec2(x, y) * onePixel));
 
-                return mix(vec4(0, 0, 0, 0), pixel, pixel.a);
+                return pixel.a > 0.0 ? 
+                       vec4(cos(TWO_PI * pixel.r), sin(TWO_PI * pixel.r), pixel.g, 1.0) : 
+                       vec4(0);
             }
 
             void main() {
@@ -121,7 +124,10 @@
                 // dead
                 else {
                     float state = texture2D(u_rules, vec2(n.a / RULES_COUNT, 0) ).g;
-                    gl_FragColor = state > 0.0 ? n / vec4(n.a, n.a, 1, 1) : texture2D(u_buffer, v_texCoord) - DECAY;
+
+                    gl_FragColor = state > 0.0 ? 
+                                   vec4(fract(1.0 + atan(n.y, n.x) / TWO_PI), n.b / n.a, 1, 1) : 
+                                   texture2D(u_buffer, v_texCoord) - DECAY;
                 }
             }
         </script>

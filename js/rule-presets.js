@@ -115,7 +115,6 @@ function RulePresets() {
         }
     ];
 
-
     this.getRule = function(index) {
 
         var alive = new Array(9);
@@ -139,7 +138,6 @@ function RulePresets() {
     
         return {'alive': alive, 'dead': dead}
     };
-
 
     this.getNames = function() {
 

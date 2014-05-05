@@ -2,15 +2,14 @@
 (function() { //scoping function to contain global variables
 
 'use strict';
-
 main();
 
 function RenderTargets(gl) {
 
     this.initialize = function(width, height) {
 
-        this.width = width || this.width || 0;
-        this.height = height || this.height || 0;
+        this.width = width || this.width;
+        this.height = height || this.height;
 
         this.front = createTarget(this.width, this.height);
         this.back = createTarget(this.width, this.height);
@@ -28,8 +27,6 @@ function RenderTargets(gl) {
     };
 
     function createTarget(width, height) {
-
-        //var type = ( gl.getExtension('OES_texture_float') && gl.getExtension('OES_texture_float_linear') ) ? gl.FLOAT : gl.UNSIGNED_BYTE;
 
         var texture = gl.createTexture();
         gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -51,6 +48,8 @@ function RenderTargets(gl) {
 }
 
 function Surface() {
+
+    var oneToOneZoom;
 
     this.top = 1;
     this.right = 1;
@@ -100,6 +99,12 @@ function Surface() {
             this.horizontalAspectRatio = 1;
             this.verticalAspectRatio = b / s;
         }
+
+        oneToOneZoom = screenW / bufferW;
+    };
+
+    this.isZoomedOut = function() {
+        return this.width() > oneToOneZoom;
     };
 
     this.setBrushSize = function(value) {
@@ -111,7 +116,7 @@ function Surface() {
     };
 }
 
-var gl, renderTargets,
+var gl, renderTargets, canvas,
     cellProgram, mouseProgram, screenProgram,
     params, surface,
     statsUi;
@@ -130,8 +135,7 @@ function init() {
         mouseX: 0,
         mouseY: 0,
 
-        screenWidth: window.innerWidth,
-        screenHeight: window.innerHeight,
+        renderQuality: 1.5,
         zoomStep: 4,
         zoomLevel: 0,
         
@@ -150,7 +154,7 @@ function init() {
 
     };
 
-    var canvas =  document.getElementById('canvas');
+    canvas =  document.getElementById('canvas');
     gl = canvas.getContext('webgl');
 
     if (!gl){
@@ -158,7 +162,7 @@ function init() {
     }
 
     renderTargets = new RenderTargets(gl);
-    renderTargets.initialize(params.screenWidth, params.screenHeight);
+    renderTargets.initialize(window.innerWidth, window.innerHeight);
 
     cellProgram = initCellProgram();
     mouseProgram = initMouseProgram();
@@ -166,13 +170,8 @@ function init() {
 
     window.onresize = function() {
 
-        params.screenWidth = window.innerWidth;
-        params.screenHeight = window.innerHeight;
-
-        surface.computeAspectRatio(params.screenWidth, params.screenHeight, renderTargets.width, renderTargets.height);
-
-        canvas.width = params.screenWidth;
-        canvas.height = params.screenHeight;
+        surface.computeAspectRatio(window.innerWidth, window.innerHeight, renderTargets.width, renderTargets.height);
+        adjustRenderQuality();
     };
     window.onresize();
 
@@ -192,7 +191,7 @@ function init() {
                 v: 1
             };
 
-            if(params.pauseOnDraw) {
+            if (params.pauseOnDraw) {
                 params.pauseCells = true;
             }
             mouseProgram.draw();
@@ -278,6 +277,7 @@ function init() {
             surface.left -= width * mx;
 
             surface.normalize();
+            adjustRenderQuality();
         }
     }
 
@@ -299,6 +299,13 @@ function init() {
 
         surface.normalize();
     }
+}
+
+function adjustRenderQuality() {
+
+    var quality = surface.isZoomedOut() ? params.renderQuality : 1;
+    canvas.width = window.innerWidth * quality;
+    canvas.height = window.innerHeight * quality;
 }
 
 function animate() {
@@ -421,7 +428,7 @@ function initScreenProgram() {
     return {
         draw: function() {
 
-            gl.viewport(0, 0, params.screenWidth, params.screenHeight);
+            gl.viewport(0, 0, canvas.width, canvas.height);
             gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
             gl.useProgram(program);
@@ -429,9 +436,7 @@ function initScreenProgram() {
             gl.bindTexture(gl.TEXTURE_2D, renderTargets.front.texture);
             gl.uniform4f(locSurface, surface.top, surface.right, surface.bottom, surface.left);
 
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
             gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
         }
     };
 }
@@ -447,8 +452,8 @@ function Controller() {
     this.brushSize = 4;
 
     this.activeRule = 0;
-    this.alive = new Array(9);
-    this.dead = new Array(9);
+    this.alive = [false, false, false, false, false, false, false, false, false];
+    this.dead = [false, false, false, false, false, false, false, false, false];
 
     this.clearScreen = function() {
         renderTargets.initialize();
@@ -464,12 +469,8 @@ function Controller() {
     };
 
     this.updateTargets = function() {
-
-        this.tCurrentWidth = this.tWidth;
-        this.tCurrentHeight = this.tHeight;
-
         renderTargets.initialize(this.tWidth, this.tHeight);
-        surface.computeAspectRatio(params.screenWidth, params.screenHeight, this.tWidth, this.tHeight);
+        window.onresize();
     };
 
     this.setBrushSize = function(value) {
@@ -504,8 +505,7 @@ function initGui() {
     gui.add(params, 'paintColorDecay', 0, 1).name('Color Decay');
     gui.add(params, 'paintSaturation', 0, 1).name('Paint Saturation');
 
-    var iPresets = gui.add(cont, 'activeRule');
-    iPresets.options(presets.getNames()).name('Preset').onChange(onPresetChange);
+    gui.add(cont, 'activeRule', presets.getNames()).name('Preset').onChange(onPresetChange);
 
     gui.add(params, 'pauseOnDraw').name('Pause On Draw');
 
@@ -514,20 +514,19 @@ function initGui() {
     // rules folder
     var guiRules = gui.addFolder('Customize Rules');
     var guiRulesAlive = guiRules.addFolder('Alive Cells');
+    var guiRulesDead = guiRules.addFolder('Dead Cells');
     for (var i = 0; i < cont.alive.length; i++) {
-        cont.alive[i] = false;
         guiRulesAlive.add(cont.alive, i).name(i + ' neighbors').onChange(cont.setRules.bind(cont));
     }
-    var guiRulesDead = guiRules.addFolder('Dead Cells');
-    cont.dead[0] = false;
     for (var i = 1; i < cont.dead.length; i++) {
-        cont.dead[i] = false;
         guiRulesDead.add(cont.dead, i).name(i + ' neighbors').onChange(cont.setRules.bind(cont));
     }
 
     // surface folder
     var guiSurface = gui.addFolder('Surface Properties');
     guiSurface.add(cont, 'clearScreen').name('Clear Screen');
+
+    guiSurface.add(params, 'renderQuality', {'Low': 1, 'Medium': 1.5, 'High': 2}).name('Render Quality').onChange(adjustRenderQuality);
 
     guiSurface.add(cont, 'tWidth', cont.tMin, cont.tMax).step(cont.tMin).name('Width')
               .onChange(maintainAspectRatio).onFinishChange(onSurfaceDimensionChanged);
@@ -547,13 +546,13 @@ function initGui() {
 
     function onPresetChange(index){
 
-        var rules = presets.getRule(index);
+        var rule = presets.getRule(index);
 
-        for (var i = 0; i < rules.alive.length; i++) {
-            guiRulesAlive.__controllers[i].setValue(rules.alive[i]);
+        for (var i = 0; i < rule.alive.length; i++) {
+            guiRulesAlive.__controllers[i].setValue(rule.alive[i]);
         }
-        for (var i = 0; i < rules.dead.length - 1; i++) {
-            guiRulesDead.__controllers[i].setValue(rules.dead[i + 1]);
+        for (var i = 0; i < rule.dead.length - 1; i++) {
+            guiRulesDead.__controllers[i].setValue(rule.dead[i + 1]);
         }
 
         cont.setRules();
@@ -566,11 +565,11 @@ function initGui() {
 
             if (value == cont.tHeight) {
                 cont.tWidth = Math.min(cont.tHeight * ar, cont.tMax);
-                cont.tHeight = (cont.tWidth == cont.tMax ? cont.tWidth / ar : value);
+                cont.tHeight = cont.tWidth == cont.tMax ? cont.tWidth / ar : value;
             }
             else {
                 cont.tHeight = Math.min(cont.tWidth / ar, cont.tMax);
-                cont.tWidth = (cont.tHeight == cont.tMax ? cont.tHeight * ar : value);
+                cont.tWidth = cont.tHeight == cont.tMax ? cont.tHeight * ar : value;
             }
 
             guiSurface.updateDisplays();
