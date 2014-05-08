@@ -1,6 +1,8 @@
 function RulePresets() {
 
-    var rules = [
+    var activeRules;
+
+    var rulesLife = [
         {
             name: 'Dry Life',
             rule: '23/37'
@@ -115,6 +117,185 @@ function RulePresets() {
         }
     ];
 
+    var rulesGenerations = [
+        {
+            name: 'Banners',
+            rule: '2367/3457/5'
+        },
+        {
+            name: 'BelZhab',
+            rule: '23/23/8'
+        },
+        {
+            name: 'BelZhab Sediment',
+            rule: '145678/23/8'
+        },
+        {
+            name: 'Bloomerang',
+            rule: '234/34678/24'
+        },
+        {
+            name: 'Bombers',
+            rule: '345/24/25'
+        },
+        {
+            name: 'Brain 6',
+            rule: '6/246/3'
+        },
+        {
+            name: 'Brian\'s Brain',
+            rule: '/2/3'
+        },
+        {
+            name: 'Burst',
+            rule: '0235678/3468/9'
+        },
+        {
+            name: 'Burst II',
+            rule: '235678/3468/9'
+        },
+        {
+            name: 'Caterpillars',
+            rule: '124567/378/4'
+        },
+        {
+            name: 'Chenille',
+            rule: '05678/24567/6'
+        },
+        {
+            name: 'Circuit Genesis',
+            rule: '2345/1234/8'
+        },
+        {
+            name: 'Cooties',
+            rule: '23/2/8'
+        },
+        {
+            name: 'Ebb&Flow',
+            rule: '012478/36/18'
+        },
+        {
+            name: 'Ebb&Flow II',
+            rule: '012468/37/18'
+        },
+        {
+            name: 'Faders',
+            rule: '2/2/25'
+        },
+        {
+            name: 'Fireworks',
+            rule: '2/13/21'
+        },
+        {
+            name: 'Flaming Starbows',
+            rule: '347/23/8'
+        },
+        {
+            name: 'Frogs',
+            rule: '12/34/3'
+        },
+        {
+            name: 'Frozen spirals',
+            rule: '356/23/6'
+        },
+        {
+            name: 'Glisserati',
+            rule: '035678/245678/7'
+        },
+        {
+            name: 'Glissergy',
+            rule: '035678/245678/5'
+        },
+        {
+            name: 'Lava',
+            rule: '12345/45678/8'
+        },
+        {
+            name: 'Lines',
+            rule: '012345/458/3'
+        },
+        {
+            name: 'Living On The Edge',
+            rule: '345/3/6'
+        },
+        {
+            name: 'Meteor Guns',
+            rule: '01245678/3/8'
+        },
+        {
+            name: 'Nova',
+            rule: '45678/2478/25'
+        },
+        {
+            name: 'OrthoGo',
+            rule: '3/2/4'
+        },
+        {
+            name: 'Prairie on fire',
+            rule: '345/34/6'
+        },
+        {
+            name: 'RainZha',
+            rule: '2/23/8'
+        },
+        {
+            name: 'Rake',
+            rule: '3467/2678/6'
+        },
+        {
+            name: 'SediMental',
+            rule: '45678/25678/4'
+        },
+        {
+            name: 'Snake',
+            rule: '03467/25/6'
+        },
+        {
+            name: 'SoftFreeze',
+            rule: '13458/38/6'
+        },
+        {
+            name: 'Spirals',
+            rule: '2/234/5'
+        },
+        {
+            name: 'Star Wars',
+            rule: '345/2/4'
+        },
+        {
+            name: 'Sticks',
+            rule: '3456/2/6'
+        },
+        {
+            name: 'Swirl',
+            rule: '23/34/8'
+        },
+        {
+            name: 'ThrillGrill',
+            rule: '1234/34/48'
+        },
+        {
+            name: 'Transers',
+            rule: '345/26/5'
+        },
+        {
+            name: 'Transers II',
+            rule: '0345/26/6'
+        },
+        {
+            name: 'Wanderers',
+            rule: '345/34678/5'
+        },
+        {
+            name: 'Worms',
+            rule: '3467/25/6'
+        },
+        {
+            name: 'Xtasy',
+            rule: '1456/2356/16'
+        }
+    ]
+
     this.getRule = function(index) {
 
         var alive = new Array(9);
@@ -124,7 +305,7 @@ function RulePresets() {
             dead[i] = false;
         }
 
-        var s = rules[index].rule;
+        var s = activeRules[index].rule;
 
         var i = 0;
         while (s[i] != '/') {
@@ -133,6 +314,9 @@ function RulePresets() {
 
         i++;
         while (s[i] != null){
+
+            if (s[i] == '/') return {'alive': alive, 'dead': dead, 'states': s.slice(++i)};
+
             dead[Number(s[i++])] = true;
         }
     
@@ -142,10 +326,18 @@ function RulePresets() {
     this.getNames = function() {
 
         obj = {}
-        for (var i = 0; i < rules.length; i++) {
-            obj[ rules[i].name ] = i;
+        for (var i = 0; i < activeRules.length; i++) {
+            obj[ activeRules[i].name ] = i;
         }
 
         return obj;
     };
+
+    this.setFamilyLife = function() {
+        activeRules = rulesLife;
+    }
+
+    this.setFamilyGenerations = function() {
+        activeRules = rulesGenerations;
+    }
 }

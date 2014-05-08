@@ -1,0 +1,1 @@
+All content licensed under the <a href="http://www.gnu.org/licenses/gpl.html">GNU General Public License</a>.

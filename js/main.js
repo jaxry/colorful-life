@@ -149,9 +149,10 @@ function init() {
         brushPixel: false,
 
         paintColor: null,
-        paintSaturation: 0.9,
-        paintColorDecay: 0.2
+        paintSaturation: 1,
+        paintColorDecay: 1,
 
+        cellStates: 1
     };
 
     canvas =  document.getElementById('canvas');
@@ -244,41 +245,42 @@ function init() {
 
     function zoomHandler(wheel) {
 
-        if ( (wheel == -1 && params.zoomLevel > 0) || (wheel == 1 && params.zoomLevel < params.zoomStep * 10) ) {
-            
-            params.zoomLevel += wheel;
-            var scale = 0.5 * Math.pow(2, -params.zoomLevel / params.zoomStep);
+        params.zoomLevel += wheel;
 
-            var mx = params.mouseX - 0.5,
-                my = params.mouseY - 0.5,
+        if (params.zoomLevel < 0) params.zoomLevel++;
+        else if (params.zoomLevel > params.zoomStep * 10) params.zoomLevel--;
 
-                width = surface.width(),
-                height = surface.height();
+        var scale = 0.5 * Math.pow(2, -params.zoomLevel / params.zoomStep);
 
-            surface.top += height * my;
-            surface.right += width * mx;
-            surface.bottom += height * my;
-            surface.left += width * mx;
+        var mx = params.mouseX - 0.5,
+            my = params.mouseY - 0.5,
 
-            var centerX = (surface.left + surface.right) / 2,
-                centerY = (surface.bottom + surface.top) / 2;
-
-            surface.top = centerY + scale * surface.verticalAspectRatio;
-            surface.right = centerX + scale * surface.horizontalAspectRatio;
-            surface.bottom = centerY - scale * surface.verticalAspectRatio;
-            surface.left = centerX - scale * surface.horizontalAspectRatio;
-
-            width = surface.width();
+            width = surface.width(),
             height = surface.height();
 
-            surface.top -= height * my;
-            surface.right -= width * mx;
-            surface.bottom -= height * my;
-            surface.left -= width * mx;
+        surface.top += height * my;
+        surface.right += width * mx;
+        surface.bottom += height * my;
+        surface.left += width * mx;
 
-            surface.normalize();
-            adjustRenderQuality();
-        }
+        var centerX = (surface.left + surface.right) / 2,
+            centerY = (surface.bottom + surface.top) / 2;
+
+        surface.top = centerY + scale * surface.verticalAspectRatio;
+        surface.right = centerX + scale * surface.horizontalAspectRatio;
+        surface.bottom = centerY - scale * surface.verticalAspectRatio;
+        surface.left = centerX - scale * surface.horizontalAspectRatio;
+
+        width = surface.width();
+        height = surface.height();
+
+        surface.top -= height * my;
+        surface.right -= width * mx;
+        surface.bottom -= height * my;
+        surface.left -= width * mx;
+
+        surface.normalize();
+        adjustRenderQuality();
     }
 
     function panningHandler() {
@@ -320,16 +322,24 @@ function animate() {
 
 function initCellProgram() {
 
-    var program = createProgram(gl, 'vertex-shader', 'cell-iteration-shader');
+    var program, locBufferResolution, locColorDecay, locCellStates;
 
-    var locBufferResolution = gl.getUniformLocation(program, 'u_bufferResolution'),
+    function createCellProgram(shaderId){
+
+        var program = createProgram(gl, 'vertex-shader', shaderId);
+
+        locBufferResolution = gl.getUniformLocation(program, 'u_bufferResolution');
         locColorDecay       = gl.getUniformLocation(program, 'u_colorDecay');
+        locCellStates       = gl.getUniformLocation(program, 'u_cellStates');
 
-    // static uniforms
-    gl.useProgram(program);
-    gl.uniform1i(gl.getUniformLocation(program, 'u_buffer'), 0);
-    gl.uniform1i(gl.getUniformLocation(program, 'u_rules'), 2);
-    gl.useProgram(null);
+        // static uniforms
+        gl.useProgram(program);
+        gl.uniform1i(gl.getUniformLocation(program, 'u_buffer'), 0);
+        gl.uniform1i(gl.getUniformLocation(program, 'u_rules'), 2);
+        gl.useProgram(null);
+
+        return program;
+    }
 
     return {
         draw: function() {
@@ -340,6 +350,7 @@ function initCellProgram() {
             gl.useProgram(program);
             gl.uniform2f(locBufferResolution, renderTargets.width, renderTargets.height);
             gl.uniform1f(locColorDecay, params.paintColorDecay);
+            gl.uniform1i(locCellStates, params.cellStates);
             gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
         },
 
@@ -357,6 +368,14 @@ function initCellProgram() {
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, alive.length, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(data));
+        },
+
+        useLifeProgram: function() {
+            program = createCellProgram('cell-life-shader');
+        },
+
+        useGenerationsProgram: function() {
+            program = createCellProgram('cell-generations-shader');
         }
     };
 }
@@ -445,19 +464,16 @@ function Controller() {
         
     this.tWidth = renderTargets.width;
     this.tHeight = renderTargets.height;
-    this.tMax = 10000;
-    this.tMin = 250;
+    this.tMin = 200;
+    this.tMax = Math.min(gl.getParameter(gl.MAX_TEXTURE_SIZE) - this.tMin, 12000);
     this.tAspectRatio = true;
 
     this.brushSize = 4;
 
-    this.activeRule = 0;
+    this.activeFamily = 0;
+    this.activePreset = 0;
     this.alive = [false, false, false, false, false, false, false, false, false];
     this.dead = [false, false, false, false, false, false, false, false, false];
-
-    this.clearScreen = function() {
-        renderTargets.initialize();
-    };
 
     this.togglePause = function() {
         params.pauseCells = !params.pauseCells;
@@ -466,6 +482,11 @@ function Controller() {
 
     this.setRules = function() {
         cellProgram.setRules(this.alive, this.dead);
+    };
+
+    this.changeCellProgram = function(value) {
+        if (value == 0) cellProgram.useLifeProgram();
+        else cellProgram.useGenerationsProgram();
     };
 
     this.updateTargets = function() {
@@ -504,15 +525,15 @@ function initGui() {
     gui.add(cont, 'brushSize', 0, 20).step(1).name('Brush Size').onFinishChange(cont.setBrushSize);
     gui.add(params, 'paintColorDecay', 0, 1).name('Color Decay');
     gui.add(params, 'paintSaturation', 0, 1).name('Paint Saturation');
-
-    gui.add(cont, 'activeRule', presets.getNames()).name('Preset').onChange(onPresetChange);
-
+    gui.add(cont, 'activeFamily', {'Life': 0, 'Generations': 1}).name('Family').onChange(onFamilyChange);
+    var iPreset = gui.add(cont, 'activePreset');
+    gui.add(cont, 'updateTargets').name('Clear Screen');
     gui.add(params, 'pauseOnDraw').name('Pause On Draw');
-
     var iAnimate = gui.add(cont, 'togglePause').name('Pause').onChange(onPauseToggle);
 
     // rules folder
     var guiRules = gui.addFolder('Customize Rules');
+    var iGenerations = guiRules.add(params, 'cellStates', 2, 50).step(1).name('Cell States');
     var guiRulesAlive = guiRules.addFolder('Alive Cells');
     var guiRulesDead = guiRules.addFolder('Dead Cells');
     for (var i = 0; i < cont.alive.length; i++) {
@@ -522,29 +543,45 @@ function initGui() {
         guiRulesDead.add(cont.dead, i).name(i + ' neighbors').onChange(cont.setRules.bind(cont));
     }
 
+    onFamilyChange(cont.activeFamily);
+    onPresetChange(cont.activePreset);
+
     // surface folder
     var guiSurface = gui.addFolder('Surface Properties');
-    guiSurface.add(cont, 'clearScreen').name('Clear Screen');
-
-    guiSurface.add(params, 'renderQuality', {'Low': 1, 'Medium': 1.5, 'High': 2}).name('Render Quality').onChange(adjustRenderQuality);
-
+    guiSurface.add(params, 'renderQuality', {'Low': 1, 'Medium': params.renderQuality, 'High': 2}).name('Render Quality').onChange(adjustRenderQuality);
     guiSurface.add(cont, 'tWidth', cont.tMin, cont.tMax).step(cont.tMin).name('Width')
-              .onChange(maintainAspectRatio).onFinishChange(onSurfaceDimensionChanged);
-
+              .onChange(maintainAspectRatio).onFinishChange(cont.updateTargets.bind(cont));
     guiSurface.add(cont, 'tHeight', cont.tMin, cont.tMax).step(cont.tMin).name('Height')
-              .onChange(maintainAspectRatio).onFinishChange(onSurfaceDimensionChanged);
-    
-    guiSurface.add(cont, 'tAspectRatio').name('Keep Ratio');
-
-    var currentAspectRatio = cont.tWidth / cont.tHeight;
-
-    onPresetChange(cont.activeRule);
+              .onChange(maintainAspectRatio).onFinishChange(cont.updateTargets.bind(cont));
+    guiSurface.add(cont, 'tAspectRatio').name('Screen Ratio');
 
     function onPauseToggle() {
         iAnimate.name(iAnimate.__li.textContent == 'Pause' ? 'Resume' : 'Pause');
     }
 
-    function onPresetChange(index){
+    function onFamilyChange(value) {
+        if (value == 0){
+            presets.setFamilyLife();
+            iGenerations.__li.style.display = 'none';
+            params.paintSaturation = 0.8;
+            params.paintColorDecay = 0.2;
+        }
+        else {
+            presets.setFamilyGenerations();
+            iGenerations.__li.style.display = '';
+            params.paintSaturation = 0.3;
+            params.paintColorDecay = 0.4;
+        }
+
+        gui.updateDisplays();
+        cont.activePreset = 0;
+        iPreset = iPreset.options(presets.getNames()).name('Preset').onChange(onPresetChange);
+        iPreset.__select.selectedIndex = cont.activePreset;
+        onPresetChange(cont.activePreset);
+        cont.changeCellProgram(value);
+    }
+
+    function onPresetChange(index) {
 
         var rule = presets.getRule(index);
 
@@ -555,13 +592,18 @@ function initGui() {
             guiRulesDead.__controllers[i].setValue(rule.dead[i + 1]);
         }
 
+        if (rule.states) {
+            params.cellStates = rule.states;
+            iGenerations.updateDisplay();
+        }
+
         cont.setRules();
     }
 
     function maintainAspectRatio(value) {
 
         if (cont.tAspectRatio) {
-            var ar = currentAspectRatio;
+            var ar = window.innerWidth / window.innerHeight;
 
             if (value == cont.tHeight) {
                 cont.tWidth = Math.min(cont.tHeight * ar, cont.tMax);
@@ -574,11 +616,6 @@ function initGui() {
 
             guiSurface.updateDisplays();
         }
-    }
-
-    function onSurfaceDimensionChanged() {
-        currentAspectRatio = cont.tWidth / cont.tHeight;
-        cont.updateTargets();
     }
 }
 
