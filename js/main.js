@@ -527,9 +527,9 @@ function initGui() {
     gui.add(params, 'paintSaturation', 0, 1).name('Paint Saturation');
     gui.add(cont, 'activeFamily', {'Life': 0, 'Generations': 1}).name('Family').onChange(onFamilyChange);
     var iPreset = gui.add(cont, 'activePreset');
-    gui.add(cont, 'updateTargets').name('Clear Screen');
-    gui.add(params, 'pauseOnDraw').name('Pause On Draw');
     var iAnimate = gui.add(cont, 'togglePause').name('Pause').onChange(onPauseToggle);
+    gui.add(params, 'pauseOnDraw').name('Pause On Draw');
+    gui.add(cont, 'updateTargets').name('Clear Screen');
 
     // rules folder
     var guiRules = gui.addFolder('Customize Rules');
