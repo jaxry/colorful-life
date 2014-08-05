@@ -340,4 +340,9 @@ function RulePresets() {
     this.setFamilyGenerations = function() {
         activeRules = rulesGenerations;
     }
+
+    //Max added
+    this.getNumberOfPresets = function() {
+        return activeRules.length;
+    }
 }

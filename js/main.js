@@ -6,654 +6,676 @@ main();
 
 function RenderTargets(gl) {
 
-    this.initialize = function(width, height) {
+	this.initialize = function(width, height) {
 
-        this.width = width || this.width;
-        this.height = height || this.height;
+		this.width = width || this.width;
+		this.height = height || this.height;
 
-        this.front = createTarget(this.width, this.height);
-        this.back = createTarget(this.width, this.height);
-    };
+		this.front = createTarget(this.width, this.height);
+		this.back = createTarget(this.width, this.height);
+	};
 
-    this.swap = function() {
+	this.swap = function() {
 
-        var tmp = this.front;
-        this.front = this.back;
-        this.back = tmp;
+		var tmp = this.front;
+		this.front = this.back;
+		this.back = tmp;
 
-        gl.bindFramebuffer(gl.FRAMEBUFFER, this.front.fbo);
-        gl.activeTexture(gl.TEXTURE0);
-        gl.bindTexture(gl.TEXTURE_2D, this.back.texture);
-    };
+		gl.bindFramebuffer(gl.FRAMEBUFFER, this.front.fbo);
+		gl.activeTexture(gl.TEXTURE0);
+		gl.bindTexture(gl.TEXTURE_2D, this.back.texture);
+	};
 
-    function createTarget(width, height) {
+	function createTarget(width, height) {
 
-        var texture = gl.createTexture();
-        gl.bindTexture(gl.TEXTURE_2D, texture);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+		var texture = gl.createTexture();
+		gl.bindTexture(gl.TEXTURE_2D, texture);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
 
-        var fbo = gl.createFramebuffer();
-        gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
-        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
+		var fbo = gl.createFramebuffer();
+		gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+		gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
 
-        gl.bindTexture(gl.TEXTURE_2D, null);
-        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+		gl.bindTexture(gl.TEXTURE_2D, null);
+		gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
-        return { 'fbo': fbo, 'texture': texture };
-    }
+		return { 'fbo': fbo, 'texture': texture };
+	}
 }
 
 function Surface() {
 
-    var oneToOneZoom;
+	var oneToOneZoom;
 
-    this.top = 1;
-    this.right = 1;
-    this.bottom = 0;
-    this.left = 0;
+	this.top = 1;
+	this.right = 1;
+	this.bottom = 0;
+	this.left = 0;
 
-    this.width = function() {
-        return this.right - this.left;
-    };
+	this.width = function() {
+		return this.right - this.left;
+	};
 
-    this.height = function() {
-        return this.top - this.bottom;
-    };
+	this.height = function() {
+		return this.top - this.bottom;
+	};
 
-    this.normalize = function() {
+	this.normalize = function() {
 
-        this.top -= Math.floor(this.bottom);
-        this.right -= Math.floor(this.left);
-        this.bottom -= Math.floor(this.bottom);
-        this.left -= Math.floor(this.left);
-    };
+		this.top -= Math.floor(this.bottom);
+		this.right -= Math.floor(this.left);
+		this.bottom -= Math.floor(this.bottom);
+		this.left -= Math.floor(this.left);
+	};
 
-    this.computeAspectRatio = function(screenW, screenH, bufferW, bufferH) {
+	this.computeAspectRatio = function(screenW, screenH, bufferW, bufferH) {
 
-        var s = screenW / screenH, 
-            b = bufferW / bufferH;
+		var s = screenW / screenH, 
+			b = bufferW / bufferH;
 
-        if (s < b){
+		if (s < b){
 
-            var center = (this.left + this.right) / 2,
-                w = this.height() * (s / b);
-            
-            this.right = center + w / 2;
-            this.left = center - w / 2;
+			var center = (this.left + this.right) / 2,
+				w = this.height() * (s / b);
+			
+			this.right = center + w / 2;
+			this.left = center - w / 2;
 
-            this.horizontalAspectRatio = s / b;
-            this.verticalAspectRatio = 1;
-        }
-        else {
+			this.horizontalAspectRatio = s / b;
+			this.verticalAspectRatio = 1;
+		}
+		else {
 
-            var center = (this.bottom + this.top) / 2,
-                h = this.width() * (b / s);
-            
-            this.top = center + h / 2;
-            this.bottom = center - h / 2;
+			var center = (this.bottom + this.top) / 2,
+				h = this.width() * (b / s);
+			
+			this.top = center + h / 2;
+			this.bottom = center - h / 2;
 
-            this.horizontalAspectRatio = 1;
-            this.verticalAspectRatio = b / s;
-        }
+			this.horizontalAspectRatio = 1;
+			this.verticalAspectRatio = b / s;
+		}
 
-        oneToOneZoom = screenW / bufferW;
-    };
+		oneToOneZoom = screenW / bufferW;
+	};
 
-    this.isZoomedOut = function() {
-        return this.width() > oneToOneZoom;
-    };
+	this.isZoomedOut = function() {
+		return this.width() > oneToOneZoom;
+	};
 
-    this.setBrushSize = function(value) {
-        this.brushSize = Math.pow(value, 3) / 1e+5;
-    };
+	this.setBrushSize = function(value) {
+		this.brushSize = Math.pow(value, 3) / 1e+5;
+	};
 
-    this.getBrushSize = function() {
-        return Math.pow(Math.min(this.width(), this.height()), 2) * this.brushSize;
-    };
+	this.getBrushSize = function() {
+		return Math.pow(Math.min(this.width(), this.height()), 2) * this.brushSize;
+	};
 }
 
 var gl, renderTargets, canvas,
-    cellProgram, mouseProgram, screenProgram,
-    params, surface,
-    statsUi;
+	cellProgram, mouseProgram, screenProgram,
+	params, surface,
+	statsUi;
 
 function main() {
 
-    init();
-    initGui();
-    animate();
+	init();
+	initGui();
+	animate();
 }
 
 function init() {
 
-    surface = new Surface();
-    params = {
-        mouseX: 0,
-        mouseY: 0,
+	surface = new Surface();
+	params = {
+		mouseX: 0,
+		mouseY: 0,
 
-        renderQuality: 1.5,
-        zoomStep: 4,
-        zoomLevel: 0,
-        
-        pauseCells: false,
-        pauseOnDraw: false,
-        pauseButton: false,
+		renderQuality: 1.5,
+		zoomStep: 4,
+		zoomLevel: 0,
+		
+		pauseCells: false,
+		pauseOnDraw: false,
+		pauseButton: false,
 
-        brushSize: null,
-        brushErase: false,
-        brushSolid: false,
-        brushPixel: false,
+		brushSize: null,
+		brushErase: false,
+		brushSolid: false,
+		brushPixel: false,
 
-        paintColor: null,
-        paintSaturation: 1,
-        paintColorDecay: 1,
+		paintColor: null,
+		paintSaturation: 1,
+		paintColorDecay: 1,
 
-        cellStates: 1
-    };
+		cellStates: 1
+	};
 
-    canvas =  document.getElementById('canvas');
-    gl = canvas.getContext('webgl');
+	canvas =  document.getElementById('canvas');
+	gl = canvas.getContext('webgl');
 
-    if (!gl){
-        alert('Could not load WebGL');
-    }
+	if (!gl){
+		alert('Could not load WebGL');
+	}
 
-    renderTargets = new RenderTargets(gl);
-    renderTargets.initialize(window.innerWidth, window.innerHeight);
+	renderTargets = new RenderTargets(gl);
+	renderTargets.initialize(window.innerWidth, window.innerHeight);
 
-    cellProgram = initCellProgram();
-    mouseProgram = initMouseProgram();
-    screenProgram = initScreenProgram();
+	cellProgram = initCellProgram();
+	mouseProgram = initMouseProgram();
+	screenProgram = initScreenProgram();
 
-    window.onresize = function() {
+	window.onresize = function() {
 
-        surface.computeAspectRatio(window.innerWidth, window.innerHeight, renderTargets.width, renderTargets.height);
-        adjustRenderQuality();
-    };
-    window.onresize();
+		surface.computeAspectRatio(window.innerWidth, window.innerHeight, renderTargets.width, renderTargets.height);
+		adjustRenderQuality();
+	};
+	window.onresize();
 
-    canvas.onmousemove = function(e) {
+	canvas.onmousemove = function(e) {
 
-        params.mouseX = e.clientX / canvas.offsetWidth;
-        params.mouseY = 1 - (e.clientY / canvas.offsetHeight);
-    };
+		params.mouseX = e.clientX / canvas.offsetWidth;
+		params.mouseY = 1 - (e.clientY / canvas.offsetHeight);
+	};
 
-    canvas.onmousedown = function(e) {
+	canvas.onmousedown = function(e) {
 
-        //left click
-        if (e.which === 1){
-            params.paintColor = {
-                h: Math.random(),
-                s: params.paintSaturation,
-                v: 1
-            };
+		//left click
+		if (e.which === 1){
+			params.paintColor = {
+				h: Math.random(),
+				s: params.paintSaturation,
+				v: 1
+			};
 
-            if (params.pauseOnDraw) {
-                params.pauseCells = true;
-            }
-            mouseProgram.draw();
-            canvas.addEventListener('mousemove', mouseProgram.draw);
-        }
-        //right click
-        else if (e.which === 3){
+			if (params.pauseOnDraw) {
+				params.pauseCells = true;
+			}
+			mouseProgram.draw();
+			canvas.addEventListener('mousemove', mouseProgram.draw);
+		}
+		//right click
+		else if (e.which === 3){
 
-            panningHandler.mouseLastX = params.mouseX;
-            panningHandler.mouseLastY = params.mouseY;
-            canvas.addEventListener('mousemove', panningHandler);
-        }
-    };
+			panningHandler.mouseLastX = params.mouseX;
+			panningHandler.mouseLastY = params.mouseY;
+			canvas.addEventListener('mousemove', panningHandler);
+		}
+	};
 
-    canvas.onmouseup = function(e) {
+	canvas.onmouseup = function(e) {
 
-        //left click
-        if (e.which === 1) {
+		//left click
+		if (e.which === 1) {
 
-            if(params.pauseOnDraw && !params.pauseButton) {
-                params.pauseCells = false;
-            }
-            canvas.removeEventListener('mousemove', mouseProgram.draw);
-        }
-        //right click
-        else if (e.which === 3) {
-            canvas.removeEventListener('mousemove', panningHandler);
-        }
-    };
+			if(params.pauseOnDraw && !params.pauseButton) {
+				params.pauseCells = false;
+			}
+			canvas.removeEventListener('mousemove', mouseProgram.draw);
+		}
+		//right click
+		else if (e.which === 3) {
+			canvas.removeEventListener('mousemove', panningHandler);
+		}
+	};
 
-    window.onkeydown = function(e) {
+	window.onkeydown = function(e) {
 
-        if (e.which === 16) params.brushErase = true; //shift key
-        if (e.which === 17) params.brushSolid = true; //ctrl key
-    };
+		if (e.which === 16) params.brushErase = true; //shift key
+		if (e.which === 17) params.brushSolid = true; //ctrl key
+	};
 
-    window.onkeyup = function(e) {
+	window.onkeyup = function(e) {
 
-        if (e.which === 16) params.brushErase = false; //shift key
-        if (e.which === 17) params.brushSolid = false; //ctrl key
-    };
+		if (e.which === 16) params.brushErase = false; //shift key
+		if (e.which === 17) params.brushSolid = false; //ctrl key
+	};
 
-    canvas.addEventListener('mousewheel', function(e) {
-        zoomHandler(e.deltaY < 0 ? 1 : -1);
-    });
+	canvas.addEventListener('mousewheel', function(e) {
+		zoomHandler(e.deltaY < 0 ? 1 : -1);
+	});
 
-    canvas.addEventListener('DOMMouseScroll', function(e){
-        zoomHandler(e.detail < 0 ? 1 : -1);
-    });
+	canvas.addEventListener('DOMMouseScroll', function(e){
+		zoomHandler(e.detail < 0 ? 1 : -1);
+	});
 
-    function zoomHandler(wheel) {
+	function zoomHandler(wheel) {
 
-        params.zoomLevel += wheel;
+		params.zoomLevel += wheel;
 
-        if (params.zoomLevel < 0) params.zoomLevel++;
-        else if (params.zoomLevel > params.zoomStep * 10) params.zoomLevel--;
+		if (params.zoomLevel < 0) params.zoomLevel++;
+		else if (params.zoomLevel > params.zoomStep * 10) params.zoomLevel--;
 
-        var scale = 0.5 * Math.pow(2, -params.zoomLevel / params.zoomStep);
+		var scale = 0.5 * Math.pow(2, -params.zoomLevel / params.zoomStep);
 
-        var mx = params.mouseX - 0.5,
-            my = params.mouseY - 0.5,
+		var mx = params.mouseX - 0.5,
+			my = params.mouseY - 0.5,
 
-            width = surface.width(),
-            height = surface.height();
+			width = surface.width(),
+			height = surface.height();
 
-        surface.top += height * my;
-        surface.right += width * mx;
-        surface.bottom += height * my;
-        surface.left += width * mx;
+		surface.top += height * my;
+		surface.right += width * mx;
+		surface.bottom += height * my;
+		surface.left += width * mx;
 
-        var centerX = (surface.left + surface.right) / 2,
-            centerY = (surface.bottom + surface.top) / 2;
+		var centerX = (surface.left + surface.right) / 2,
+			centerY = (surface.bottom + surface.top) / 2;
 
-        surface.top = centerY + scale * surface.verticalAspectRatio;
-        surface.right = centerX + scale * surface.horizontalAspectRatio;
-        surface.bottom = centerY - scale * surface.verticalAspectRatio;
-        surface.left = centerX - scale * surface.horizontalAspectRatio;
+		surface.top = centerY + scale * surface.verticalAspectRatio;
+		surface.right = centerX + scale * surface.horizontalAspectRatio;
+		surface.bottom = centerY - scale * surface.verticalAspectRatio;
+		surface.left = centerX - scale * surface.horizontalAspectRatio;
 
-        width = surface.width();
-        height = surface.height();
+		width = surface.width();
+		height = surface.height();
 
-        surface.top -= height * my;
-        surface.right -= width * mx;
-        surface.bottom -= height * my;
-        surface.left -= width * mx;
+		surface.top -= height * my;
+		surface.right -= width * mx;
+		surface.bottom -= height * my;
+		surface.left -= width * mx;
 
-        surface.normalize();
-        adjustRenderQuality();
-    }
+		surface.normalize();
+		adjustRenderQuality();
+	}
 
-    function panningHandler() {
+	function panningHandler() {
 
-        var dx = panningHandler.mouseLastX - params.mouseX,
-            dy = panningHandler.mouseLastY - params.mouseY,
-            
-            width = surface.width(),
-            height = surface.height();
+		var dx = panningHandler.mouseLastX - params.mouseX,
+			dy = panningHandler.mouseLastY - params.mouseY,
+			
+			width = surface.width(),
+			height = surface.height();
 
-        surface.top += height * dy;
-        surface.right += width * dx;
-        surface.bottom += height * dy;
-        surface.left += width * dx;
+		surface.top += height * dy;
+		surface.right += width * dx;
+		surface.bottom += height * dy;
+		surface.left += width * dx;
 
-        panningHandler.mouseLastX = params.mouseX;
-        panningHandler.mouseLastY = params.mouseY;
+		panningHandler.mouseLastX = params.mouseX;
+		panningHandler.mouseLastY = params.mouseY;
 
-        surface.normalize();
-    }
+		surface.normalize();
+	}
 }
 
 function adjustRenderQuality() {
 
-    var quality = surface.isZoomedOut() ? params.renderQuality : 1;
-    canvas.width = window.innerWidth * quality;
-    canvas.height = window.innerHeight * quality;
+	var quality = surface.isZoomedOut() ? params.renderQuality : 1;
+	canvas.width = window.innerWidth * quality;
+	canvas.height = window.innerHeight * quality;
 }
 
 function animate() {
 
-    if (!params.pauseCells) {
-        cellProgram.draw();
-    }
-    screenProgram.draw();
-    statsUi.update();
-    window.requestAnimationFrame(animate);
+	if (!params.pauseCells) {
+		cellProgram.draw();
+	}
+	screenProgram.draw();
+	statsUi.update();
+	window.requestAnimationFrame(animate);
 }
 
 function initCellProgram() {
 
-    var program, locBufferResolution, locColorDecay, locCellStates;
+	var program, locBufferResolution, locColorDecay, locCellStates;
 
-    function createCellProgram(shaderId){
+	function createCellProgram(shaderId){
 
-        var program = createProgram(gl, 'vertex-shader', shaderId);
+		var program = createProgram(gl, 'vertex-shader', shaderId);
 
-        locBufferResolution = gl.getUniformLocation(program, 'u_bufferResolution');
-        locColorDecay       = gl.getUniformLocation(program, 'u_colorDecay');
-        locCellStates       = gl.getUniformLocation(program, 'u_cellStates');
+		locBufferResolution = gl.getUniformLocation(program, 'u_bufferResolution');
+		locColorDecay       = gl.getUniformLocation(program, 'u_colorDecay');
+		locCellStates       = gl.getUniformLocation(program, 'u_cellStates');
 
-        // static uniforms
-        gl.useProgram(program);
-        gl.uniform1i(gl.getUniformLocation(program, 'u_buffer'), 0);
-        gl.uniform1i(gl.getUniformLocation(program, 'u_rules'), 2);
-        gl.useProgram(null);
+		// static uniforms
+		gl.useProgram(program);
+		gl.uniform1i(gl.getUniformLocation(program, 'u_buffer'), 0);
+		gl.uniform1i(gl.getUniformLocation(program, 'u_rules'), 2);
+		gl.useProgram(null);
 
-        return program;
-    }
+		return program;
+	}
 
-    return {
-        draw: function() {
+	return {
+		draw: function() {
 
-            gl.viewport(0, 0, renderTargets.width, renderTargets.height);
-            renderTargets.swap();
+			gl.viewport(0, 0, renderTargets.width, renderTargets.height);
+			renderTargets.swap();
 
-            gl.useProgram(program);
-            gl.uniform2f(locBufferResolution, renderTargets.width, renderTargets.height);
-            gl.uniform1f(locColorDecay, params.paintColorDecay);
-            gl.uniform1i(locCellStates, params.cellStates);
-            gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
-        },
+			gl.useProgram(program);
+			gl.uniform2f(locBufferResolution, renderTargets.width, renderTargets.height);
+			gl.uniform1f(locColorDecay, params.paintColorDecay);
+			gl.uniform1i(locCellStates, params.cellStates);
+			gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
+		},
 
-        setRules: function(alive, dead) {
+		setRules: function(alive, dead) {
 
-            var data = [];
-            for (var i = 0; i < alive.length; i++){
-                data.push(alive[i] * 255, dead[i] * 255, 0, 0);
-            }
-            var texture = gl.createTexture();
-            gl.activeTexture(gl.TEXTURE2);
-            gl.bindTexture(gl.TEXTURE_2D, texture);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, alive.length, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(data));
-        },
+			var data = [];
+			for (var i = 0; i < alive.length; i++){
+				data.push(alive[i] * 255, dead[i] * 255, 0, 0);
+			}
+			var texture = gl.createTexture();
+			gl.activeTexture(gl.TEXTURE2);
+			gl.bindTexture(gl.TEXTURE_2D, texture);
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, alive.length, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(data));
+		},
 
-        useLifeProgram: function() {
-            program = createCellProgram('cell-life-shader');
-        },
+		useLifeProgram: function() {
+			program = createCellProgram('cell-life-shader');
+		},
 
-        useGenerationsProgram: function() {
-            program = createCellProgram('cell-generations-shader');
-        }
-    };
+		useGenerationsProgram: function() {
+			program = createCellProgram('cell-generations-shader');
+		}
+	};
 }
 
 function initMouseProgram() {
 
-    var program = createProgram(gl, 'vertex-shader', 'mouse-shader');
+	var program = createProgram(gl, 'vertex-shader', 'mouse-shader');
 
-    var locBufferResolution = gl.getUniformLocation(program, 'u_bufferResolution'),
-        locMouse            = gl.getUniformLocation(program, 'u_mouse'),
-        locBrushSize        = gl.getUniformLocation(program, 'u_brushSize'),
-        locColor            = gl.getUniformLocation(program, 'u_color'),
-        locBrushErase       = gl.getUniformLocation(program, 'u_brushErase'),
-        locBrushSolid       = gl.getUniformLocation(program, 'u_brushSolid'),
-        locBrushPixel       = gl.getUniformLocation(program, 'u_brushPixel'),
-        locColorDecay       = gl.getUniformLocation(program, 'u_colorDecay'),
-        locRandom           = gl.getUniformLocation(program, 'u_random'),
-        locSurface          = gl.getUniformLocation(program, 'u_surface');
+	var locBufferResolution = gl.getUniformLocation(program, 'u_bufferResolution'),
+		locMouse            = gl.getUniformLocation(program, 'u_mouse'),
+		locBrushSize        = gl.getUniformLocation(program, 'u_brushSize'),
+		locColor            = gl.getUniformLocation(program, 'u_color'),
+		locBrushErase       = gl.getUniformLocation(program, 'u_brushErase'),
+		locBrushSolid       = gl.getUniformLocation(program, 'u_brushSolid'),
+		locBrushPixel       = gl.getUniformLocation(program, 'u_brushPixel'),
+		locColorDecay       = gl.getUniformLocation(program, 'u_colorDecay'),
+		locRandom           = gl.getUniformLocation(program, 'u_random'),
+		locSurface          = gl.getUniformLocation(program, 'u_surface');
 
-    // static uniforms
-    gl.useProgram(program);
-    gl.uniform1i(gl.getUniformLocation(program, 'u_buffer'), 0);
-    gl.useProgram(null);
+	// static uniforms
+	gl.useProgram(program);
+	gl.uniform1i(gl.getUniformLocation(program, 'u_buffer'), 0);
+	gl.useProgram(null);
 
-    return {
-        draw: function() {
+	return {
+		draw: function() {
 
-            gl.viewport(0, 0, renderTargets.width, renderTargets.height);
-            renderTargets.swap();
+			gl.viewport(0, 0, renderTargets.width, renderTargets.height);
+			renderTargets.swap();
 
-            gl.useProgram(program);
-            gl.uniform2f(locBufferResolution, renderTargets.width, renderTargets.height);
-            gl.uniform2f(locMouse, params.mouseX, params.mouseY);
-            gl.uniform4f(locColor, params.paintColor.h, params.paintColor.s, params.paintColor.v, 1.0);
-            gl.uniform1i(locBrushErase, params.brushErase);
-            gl.uniform1i(locBrushSolid, params.brushSolid);
-            gl.uniform1i(locBrushPixel, params.brushPixel);
-            gl.uniform1f(locBrushSize, surface.getBrushSize());
-            gl.uniform1f(locColorDecay, params.paintColorDecay);
-            gl.uniform1f(locRandom, Math.random());
-            gl.uniform4f(locSurface, surface.top, surface.right, surface.bottom, surface.left);
+			gl.useProgram(program);
+			gl.uniform2f(locBufferResolution, renderTargets.width, renderTargets.height);
+			gl.uniform2f(locMouse, params.mouseX, params.mouseY);
+			gl.uniform4f(locColor, params.paintColor.h, params.paintColor.s, params.paintColor.v, 1.0);
+			gl.uniform1i(locBrushErase, params.brushErase);
+			gl.uniform1i(locBrushSolid, params.brushSolid);
+			gl.uniform1i(locBrushPixel, params.brushPixel);
+			gl.uniform1f(locBrushSize, surface.getBrushSize());
+			gl.uniform1f(locColorDecay, params.paintColorDecay);
+			gl.uniform1f(locRandom, Math.random());
+			gl.uniform4f(locSurface, surface.top, surface.right, surface.bottom, surface.left);
 
-            gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);  
-        }
-    };
+			gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);  
+		}
+	};
 }
 
 function initScreenProgram() {
 
-    var program = createProgram(gl, 'vertex-shader', 'screen-shader');
+	var program = createProgram(gl, 'vertex-shader', 'screen-shader');
 
-    var locSurface = gl.getUniformLocation(program, 'u_surface');
+	var locSurface = gl.getUniformLocation(program, 'u_surface');
 
-    // static uniforms
-    gl.useProgram(program);
-    gl.uniform1i(gl.getUniformLocation(program, 'u_screenBuffer'), 1);
-    gl.useProgram(null);
+	// static uniforms
+	gl.useProgram(program);
+	gl.uniform1i(gl.getUniformLocation(program, 'u_screenBuffer'), 1);
+	gl.useProgram(null);
 
-    var locVertexCoords = gl.getAttribLocation(program, 'a_position');
-    gl.enableVertexAttribArray(locVertexCoords);
-    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
-    gl.vertexAttribPointer(locVertexCoords, 2, gl.FLOAT, false, 0, 0);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
-        0, 0,
-        0, 1,
-        1, 1,
-        1, 0]), gl.STATIC_DRAW);
+	var locVertexCoords = gl.getAttribLocation(program, 'a_position');
+	gl.enableVertexAttribArray(locVertexCoords);
+	gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+	gl.vertexAttribPointer(locVertexCoords, 2, gl.FLOAT, false, 0, 0);
+	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+		0, 0,
+		0, 1,
+		1, 1,
+		1, 0]), gl.STATIC_DRAW);
 
-    return {
-        draw: function() {
+	return {
+		draw: function() {
 
-            gl.viewport(0, 0, canvas.width, canvas.height);
-            gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+			gl.viewport(0, 0, canvas.width, canvas.height);
+			gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
-            gl.useProgram(program);
-            gl.activeTexture(gl.TEXTURE1);
-            gl.bindTexture(gl.TEXTURE_2D, renderTargets.front.texture);
-            gl.uniform4f(locSurface, surface.top, surface.right, surface.bottom, surface.left);
+			gl.useProgram(program);
+			gl.activeTexture(gl.TEXTURE1);
+			gl.bindTexture(gl.TEXTURE_2D, renderTargets.front.texture);
+			gl.uniform4f(locSurface, surface.top, surface.right, surface.bottom, surface.left);
 
-            gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
-        }
-    };
+			gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
+		}
+	};
 }
 
 function Controller() {
-        
-    this.tWidth = renderTargets.width;
-    this.tHeight = renderTargets.height;
-    this.tMin = 200;
-    this.tMax = Math.min(gl.getParameter(gl.MAX_TEXTURE_SIZE) - this.tMin, 12000);
-    this.tAspectRatio = true;
+		
+	this.tWidth = renderTargets.width;
+	this.tHeight = renderTargets.height;
+	this.tMin = 200;
+	this.tMax = Math.min(gl.getParameter(gl.MAX_TEXTURE_SIZE) - this.tMin, 12000);
+	this.tAspectRatio = true;
 
-    this.brushSize = 4;
+	this.brushSize = 4;
 
-    this.activeFamily = 0;
-    this.activePreset = 0;
-    this.alive = [false, false, false, false, false, false, false, false, false];
-    this.dead = [false, false, false, false, false, false, false, false, false];
+	this.activeFamily = 0;
+	this.activePreset = 0;
+	this.alive = [false, false, false, false, false, false, false, false, false];
+	this.dead = [false, false, false, false, false, false, false, false, false];
 
-    this.togglePause = function() {
-        params.pauseCells = !params.pauseCells;
-        params.pauseButton = !params.pauseButton;
-    };
+	this.togglePause = function() {
+		params.pauseCells = !params.pauseCells;
+		params.pauseButton = !params.pauseButton;
+	};
 
-    this.setRules = function() {
-        cellProgram.setRules(this.alive, this.dead);
-    };
+	this.setRules = function() {
+		cellProgram.setRules(this.alive, this.dead);
+	};
 
-    this.changeCellProgram = function(value) {
-        if (value == 0) cellProgram.useLifeProgram();
-        else cellProgram.useGenerationsProgram();
-    };
+	this.changeCellProgram = function(value) {
+		if (value == 0) cellProgram.useLifeProgram();
+		else cellProgram.useGenerationsProgram();
+	};
 
-    this.updateTargets = function() {
-        renderTargets.initialize(this.tWidth, this.tHeight);
-        window.onresize();
-    };
+	this.updateTargets = function() {
+		renderTargets.initialize(this.tWidth, this.tHeight);
+		window.onresize();
+	};
 
-    this.setBrushSize = function(value) {
-        
-        params.brushPixel = (value === 0 ? true : false);
-        surface.setBrushSize(value);
-    };
+	this.setBrushSize = function(value) {
+		
+		params.brushPixel = (value === 0 ? true : false);
+		surface.setBrushSize(value);
+	};
 
-    //Max added
-    this.randomizeBrush = function() {
+	//Max added
+	this.randomizeBrush = function() {
 
-    }
+	}
 
 
-    this.setBrushSize(this.brushSize);
+	this.setBrushSize(this.brushSize);
 }
 
 function initGui() {
 
-    statsUi = new Stats();
-    statsUi.domElement.style.position = 'absolute';
-    statsUi.domElement.style.left = '0px';
-    statsUi.domElement.style.top = '0px';
-    document.body.appendChild(statsUi.domElement);
+	statsUi = new Stats();
+	statsUi.domElement.style.position = 'absolute';
+	statsUi.domElement.style.left = '0px';
+	statsUi.domElement.style.top = '0px';
+	document.body.appendChild(statsUi.domElement);
 
-    var gui = new dat.GUI(),
-        presets = new RulePresets(),
-        cont = new Controller();
+	var gui = new dat.GUI(),
+		presets = new RulePresets(),
+		cont = new Controller();
 
-    dat.GUI.prototype.updateDisplays = function() {
-        for (var i in this.__controllers) {
-            this.__controllers[i].updateDisplay();
-        }
-    };
+	dat.GUI.prototype.updateDisplays = function() {
+		for (var i in this.__controllers) {
+			this.__controllers[i].updateDisplay();
+		}
+	};
 
-    // main folder
-    gui.add(cont, 'brushSize', 0, 20).step(1).name('Brush Size').onFinishChange(cont.setBrushSize);
-    gui.add(params, 'paintColorDecay', 0, 1).name('Color Decay');
-    gui.add(params, 'paintSaturation', 0, 1).name('Paint Saturation');
-    gui.add(cont, 'activeFamily', {'Life': 0, 'Generations': 1}).name('Family').onChange(onFamilyChange);
-    var iPreset = gui.add(cont, 'activePreset');
-    var iAnimate = gui.add(cont, 'togglePause').name('Pause').onChange(onPauseToggle);
-    gui.add(params, 'pauseOnDraw').name('Pause On Draw');
-    gui.add(cont, 'updateTargets').name('Clear Screen');
+	// main folder
+	gui.add(cont, 'brushSize', 0, 20).step(1).name('Brush Size').onFinishChange(cont.setBrushSize);
+	gui.add(params, 'paintColorDecay', 0, 1).name('Color Decay');
+	gui.add(params, 'paintSaturation', 0, 1).name('Paint Saturation');
+	gui.add(cont, 'activeFamily', {'Life': 0, 'Generations': 1}).name('Family').onChange(onFamilyChange);
+	var iPreset = gui.add(cont, 'activePreset');
+	var iAnimate = gui.add(cont, 'togglePause').name('Pause').onChange(onPauseToggle);
+	gui.add(params, 'pauseOnDraw').name('Pause On Draw');
+	gui.add(cont, 'updateTargets').name('Clear Screen');
 
-    //Max added
-    gui.add(cont, 'randomizeBrush').name('Randomize Brush').onChange(onRandomizeBrush);
+	//Max added
+	gui.add(cont, 'randomizeBrush').name('Randomize Brush').onChange(onRandomizeBrush);
 
-    // rules folder
-    var guiRules = gui.addFolder('Customize Rules');
-    var iGenerations = guiRules.add(params, 'cellStates', 2, 50).step(1).name('Cell States');
-    var guiRulesAlive = guiRules.addFolder('Alive Cells');
-    var guiRulesDead = guiRules.addFolder('Dead Cells');
-    for (var i = 0; i < cont.alive.length; i++) {
-        guiRulesAlive.add(cont.alive, i).name(i + ' neighbors').onChange(cont.setRules.bind(cont));
-    }
-    for (var i = 1; i < cont.dead.length; i++) {
-        guiRulesDead.add(cont.dead, i).name(i + ' neighbors').onChange(cont.setRules.bind(cont));
-    }
+	// rules folder
+	var guiRules = gui.addFolder('Customize Rules');
+	var iGenerations = guiRules.add(params, 'cellStates', 2, 50).step(1).name('Cell States');
+	var guiRulesAlive = guiRules.addFolder('Alive Cells');
+	var guiRulesDead = guiRules.addFolder('Dead Cells');
+	for (var i = 0; i < cont.alive.length; i++) {
+		guiRulesAlive.add(cont.alive, i).name(i + ' neighbors').onChange(cont.setRules.bind(cont));
+	}
+	for (var i = 1; i < cont.dead.length; i++) {
+		guiRulesDead.add(cont.dead, i).name(i + ' neighbors').onChange(cont.setRules.bind(cont));
+	}
 
-    onFamilyChange(cont.activeFamily);
-    onPresetChange(cont.activePreset);
+	onFamilyChange(cont.activeFamily);
+	onPresetChange(cont.activePreset);
 
-    // surface folder
-    var guiSurface = gui.addFolder('Surface Properties');
-    guiSurface.add(params, 'renderQuality', {'Low': 1, 'Medium': params.renderQuality, 'High': 2}).name('Render Quality').onChange(adjustRenderQuality);
-    guiSurface.add(cont, 'tWidth', cont.tMin, cont.tMax).step(cont.tMin).name('Width')
-              .onChange(maintainAspectRatio).onFinishChange(cont.updateTargets.bind(cont));
-    guiSurface.add(cont, 'tHeight', cont.tMin, cont.tMax).step(cont.tMin).name('Height')
-              .onChange(maintainAspectRatio).onFinishChange(cont.updateTargets.bind(cont));
-    guiSurface.add(cont, 'tAspectRatio').name('Screen Ratio');
+	// surface folder
+	var guiSurface = gui.addFolder('Surface Properties');
+	guiSurface.add(params, 'renderQuality', {'Low': 1, 'Medium': params.renderQuality, 'High': 2}).name('Render Quality').onChange(adjustRenderQuality);
+	guiSurface.add(cont, 'tWidth', cont.tMin, cont.tMax).step(cont.tMin).name('Width')
+			  .onChange(maintainAspectRatio).onFinishChange(cont.updateTargets.bind(cont));
+	guiSurface.add(cont, 'tHeight', cont.tMin, cont.tMax).step(cont.tMin).name('Height')
+			  .onChange(maintainAspectRatio).onFinishChange(cont.updateTargets.bind(cont));
+	guiSurface.add(cont, 'tAspectRatio').name('Screen Ratio');
 
-    function onPauseToggle() {
-        iAnimate.name(iAnimate.__li.textContent == 'Pause' ? 'Resume' : 'Pause');
-    }
+	function onPauseToggle() {
+		iAnimate.name(iAnimate.__li.textContent == 'Pause' ? 'Resume' : 'Pause');
+	}
 
-    function onRandomizeBrush() {
-    	var randomFamily = Math.floor(Math.random() * (1 - 0 + 1) + 0);
-    	onFamilyChange(randomFamily);
+	//Max added
+	function onRandomizeBrush() {
+		var randomFamily = Math.floor(Math.random() * (1 - 0 + 1) + 0);
+		cont.activeFamily = randomFamily;
+		
+		if (randomFamily == 0) {
+			presets.setFamilyLife();
+			iGenerations.__li.style.display = 'none';    		
+		} 
+		else {
+			presets.setFamilyGenerations();
+			iGenerations.__li.style.display = '';
+		}
 
 
-    	params.paintSaturation = Math.random();
-    	params.paintColorDecay = Math.random();
-    	gui.updateDisplays();
-    }
+		params.paintSaturation = Math.random();
+		params.paintColorDecay = Math.random();
 
-    function onFamilyChange(value) {
-        if (value == 0){
-            presets.setFamilyLife();
-            iGenerations.__li.style.display = 'none';
-            params.paintSaturation = 0.8;
-            params.paintColorDecay = 0.2;
-        }
-        else {
-            presets.setFamilyGenerations();
-            iGenerations.__li.style.display = '';
-            params.paintSaturation = 0.3;
-            params.paintColorDecay = 0.4;
-        }
 
-        gui.updateDisplays();
-        cont.activePreset = 0;
-        iPreset = iPreset.options(presets.getNames()).name('Preset').onChange(onPresetChange);
-        iPreset.__select.selectedIndex = cont.activePreset;
-        onPresetChange(cont.activePreset);
-        cont.changeCellProgram(value);
-    }
+		gui.updateDisplays();
 
-    function onPresetChange(index) {
 
-        var rule = presets.getRule(index);
+		var randomPreset = Math.floor(Math.random() * (presets.getNumberOfPresets() - 0 + 1) + 0);
 
-        for (var i = 0; i < rule.alive.length; i++) {
-            guiRulesAlive.__controllers[i].setValue(rule.alive[i]);
-        }
-        for (var i = 0; i < rule.dead.length - 1; i++) {
-            guiRulesDead.__controllers[i].setValue(rule.dead[i + 1]);
-        }
+		cont.activePreset = randomPreset;
 
-        if (rule.states) {
-            params.cellStates = rule.states;
-            iGenerations.updateDisplay();
-        }
+		iPreset = iPreset.options(presets.getNames()).name('Preset').onChange(onPresetChange);
+		iPreset.__select.selectedIndex = cont.activePreset;
+		onPresetChange(cont.activePreset);
+		cont.changeCellProgram(value);
+	}
 
-        cont.setRules();
-    }
+	function onFamilyChange(value) {
+		if (value == 0){
+			presets.setFamilyLife();
+			iGenerations.__li.style.display = 'none';
+			params.paintSaturation = 0.8;
+			params.paintColorDecay = 0.2;
+		}
+		else {
+			presets.setFamilyGenerations();
+			iGenerations.__li.style.display = '';
+			params.paintSaturation = 0.3;
+			params.paintColorDecay = 0.4;
+		}
 
-    function maintainAspectRatio(value) {
+		gui.updateDisplays();
+		cont.activePreset = 0;
+		iPreset = iPreset.options(presets.getNames()).name('Preset').onChange(onPresetChange);
+		iPreset.__select.selectedIndex = cont.activePreset;
+		onPresetChange(cont.activePreset);
+		cont.changeCellProgram(value);
+	}
 
-        if (cont.tAspectRatio) {
-            var ar = window.innerWidth / window.innerHeight;
+	function onPresetChange(index) {
 
-            if (value == cont.tHeight) {
-                cont.tWidth = Math.min(cont.tHeight * ar, cont.tMax);
-                cont.tHeight = cont.tWidth == cont.tMax ? cont.tWidth / ar : value;
-            }
-            else {
-                cont.tHeight = Math.min(cont.tWidth / ar, cont.tMax);
-                cont.tWidth = cont.tHeight == cont.tMax ? cont.tHeight * ar : value;
-            }
+		var rule = presets.getRule(index);
 
-            guiSurface.updateDisplays();
-        }
-    }
+		for (var i = 0; i < rule.alive.length; i++) {
+			guiRulesAlive.__controllers[i].setValue(rule.alive[i]);
+		}
+		for (var i = 0; i < rule.dead.length - 1; i++) {
+			guiRulesDead.__controllers[i].setValue(rule.dead[i + 1]);
+		}
+
+		if (rule.states) {
+			params.cellStates = rule.states;
+			iGenerations.updateDisplay();
+		}
+
+		cont.setRules();
+	}
+
+	function maintainAspectRatio(value) {
+
+		if (cont.tAspectRatio) {
+			var ar = window.innerWidth / window.innerHeight;
+
+			if (value == cont.tHeight) {
+				cont.tWidth = Math.min(cont.tHeight * ar, cont.tMax);
+				cont.tHeight = cont.tWidth == cont.tMax ? cont.tWidth / ar : value;
+			}
+			else {
+				cont.tHeight = Math.min(cont.tWidth / ar, cont.tMax);
+				cont.tWidth = cont.tHeight == cont.tMax ? cont.tHeight * ar : value;
+			}
+
+			guiSurface.updateDisplays();
+		}
+	}
 }
 
 function createProgram(gl, vertexShaderID, fragmentShaderID) {
 
-    var vertexShader = gl.createShader(gl.VERTEX_SHADER);
-    gl.shaderSource(vertexShader, document.getElementById(vertexShaderID).innerHTML);
-    gl.compileShader(vertexShader);
+	var vertexShader = gl.createShader(gl.VERTEX_SHADER);
+	gl.shaderSource(vertexShader, document.getElementById(vertexShaderID).innerHTML);
+	gl.compileShader(vertexShader);
 
-    var fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
-    gl.shaderSource(fragmentShader, document.getElementById(fragmentShaderID).innerHTML);
-    gl.compileShader(fragmentShader);
+	var fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+	gl.shaderSource(fragmentShader, document.getElementById(fragmentShaderID).innerHTML);
+	gl.compileShader(fragmentShader);
 
-    var program = gl.createProgram();
-    gl.attachShader(program, vertexShader);
-    gl.attachShader(program, fragmentShader);
-    gl.linkProgram(program);
+	var program = gl.createProgram();
+	gl.attachShader(program, vertexShader);
+	gl.attachShader(program, fragmentShader);
+	gl.linkProgram(program);
 
-    return program;
+	return program;
 }
 
 })();
