@@ -500,6 +500,12 @@ function Controller() {
         surface.setBrushSize(value);
     };
 
+    //Max added
+    this.randomizeBrush = function() {
+
+    }
+
+
     this.setBrushSize(this.brushSize);
 }
 
@@ -531,6 +537,9 @@ function initGui() {
     gui.add(params, 'pauseOnDraw').name('Pause On Draw');
     gui.add(cont, 'updateTargets').name('Clear Screen');
 
+    //Max added
+    gui.add(cont, 'randomizeBrush').name('Randomize Brush').onChange(onRandomizeBrush);
+
     // rules folder
     var guiRules = gui.addFolder('Customize Rules');
     var iGenerations = guiRules.add(params, 'cellStates', 2, 50).step(1).name('Cell States');
@@ -557,6 +566,16 @@ function initGui() {
 
     function onPauseToggle() {
         iAnimate.name(iAnimate.__li.textContent == 'Pause' ? 'Resume' : 'Pause');
+    }
+
+    function onRandomizeBrush() {
+    	var randomFamily = Math.floor(Math.random() * (1 - 0 + 1) + 0);
+    	onFamilyChange(randomFamily);
+
+
+    	params.paintSaturation = Math.random();
+    	params.paintColorDecay = Math.random();
+    	gui.updateDisplays();
     }
 
     function onFamilyChange(value) {
