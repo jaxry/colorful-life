@@ -500,6 +500,10 @@ function Controller() {
         surface.setBrushSize(value);
     };
 
+    this.randomizeBrush = function() {
+
+    }
+
     this.setBrushSize(this.brushSize);
 }
 
