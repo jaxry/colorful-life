@@ -343,6 +343,6 @@ function RulePresets() {
 
     //Max added
     this.getNumberOfPresets = function() {
-        return activeRules.length;
+        return activeRules.length - 1;
     }
 }
