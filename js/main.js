@@ -500,6 +500,10 @@ function Controller() {
         surface.setBrushSize(value);
     };
 
+    this.randomizeBrush = function() {
+
+    }
+
     this.setBrushSize(this.brushSize);
 }
 
@@ -531,6 +535,9 @@ function initGui() {
     gui.add(params, 'pauseOnDraw').name('Pause On Draw');
     gui.add(cont, 'updateTargets').name('Clear Screen');
 
+    //Max added
+    gui.add(cont, 'randomizeBrush').name('Randomize Brush').onChange(onRandomizeBrush);
+
     // rules folder
     var guiRules = gui.addFolder('Customize Rules');
     var iGenerations = guiRules.add(params, 'cellStates', 2, 50).step(1).name('Cell States');
@@ -557,6 +564,35 @@ function initGui() {
 
     function onPauseToggle() {
         iAnimate.name(iAnimate.__li.textContent == 'Pause' ? 'Resume' : 'Pause');
+    }
+
+    //Max added
+    function onRandomizeBrush() {
+        var randomFamily = Math.floor(Math.random() * (1 - 0 + 1) + 0);
+        cont.activeFamily = randomFamily;
+        
+        if (randomFamily == 0) {
+            presets.setFamilyLife();
+            iGenerations.__li.style.display = 'none';           
+        } 
+        else {
+            presets.setFamilyGenerations();
+            iGenerations.__li.style.display = '';
+        }
+
+        params.paintSaturation = Math.random();
+        params.paintColorDecay = Math.random();
+
+        gui.updateDisplays();
+
+        var randomPreset = Math.floor(Math.random() * (presets.getNumberOfPresets() - 0 + 1) + 0);
+
+        cont.activePreset = randomPreset;
+
+        iPreset = iPreset.options(presets.getNames()).name('Preset').onChange(onPresetChange);
+        iPreset.__select.selectedIndex = cont.activePreset;
+        onPresetChange(cont.activePreset);
+        cont.changeCellProgram(value);
     }
 
     function onFamilyChange(value) {
