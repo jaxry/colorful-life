@@ -1,8 +1,8 @@
 function RulePresets() {
 
-    var activeRules;
+    var activeFamily;
 
-    var rulesLife = [
+    var familyLife = [
         {
             name: 'Dry Life',
             rule: '23/37'
@@ -117,7 +117,7 @@ function RulePresets() {
         }
     ];
 
-    var rulesGenerations = [
+    var familyGenerations = [
         {
             name: 'Banners',
             rule: '2367/3457/5'
@@ -294,7 +294,7 @@ function RulePresets() {
             name: 'Xtasy',
             rule: '1456/2356/16'
         }
-    ]
+    ];
 
     this.getRule = function(index) {
 
@@ -305,7 +305,7 @@ function RulePresets() {
             dead[i] = false;
         }
 
-        var s = activeRules[index].rule;
+        var s = activeFamily[index].rule;
 
         var i = 0;
         while (s[i] != '/') {
@@ -315,29 +315,29 @@ function RulePresets() {
         i++;
         while (s[i] != null){
 
-            if (s[i] == '/') return {'alive': alive, 'dead': dead, 'states': s.slice(++i)};
+            if (s[i] == '/') return {'alive': alive, 'dead': dead, 'cellStates': s.slice(++i)};
 
             dead[Number(s[i++])] = true;
         }
     
-        return {'alive': alive, 'dead': dead}
+        return {'alive': alive, 'dead': dead};
     };
 
     this.getNames = function() {
 
-        obj = {}
-        for (var i = 0; i < activeRules.length; i++) {
-            obj[ activeRules[i].name ] = i;
+        obj = {};
+        for (var i = 0; i < activeFamily.length; i++) {
+            obj[activeFamily[i].name] = i;
         }
 
         return obj;
     };
 
     this.setFamilyLife = function() {
-        activeRules = rulesLife;
-    }
+        activeFamily = familyLife;
+    };
 
     this.setFamilyGenerations = function() {
-        activeRules = rulesGenerations;
-    }
+        activeFamily = familyGenerations;
+    };
 }

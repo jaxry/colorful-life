@@ -29,16 +29,16 @@
 
         <div id='overlay'>
             <h1> Draw something. </h1>
-            <div id='controls'>
+            <div id='controls-container'>
                 <span>
-                    <strong>Pan:</strong> Hold right click
+                    <b>Pan:</b> Hold right click
                     <br>
-                    <strong>Eraser:</strong> Hold Shift and draw
+                    <b>Eraser:</b> Hold Shift and draw
                 </span>
                 <span>
-                    <strong>Zoom:</strong> Use mousewheel
+                    <b>Zoom:</b> Use mousewheel
                     <br>
-                    <strong>Solid Brush:</strong> Hold Ctrl and draw
+                    <b>Solid Brush:</b> Hold Ctrl and draw
                 </span>
             </div>
         </div>
@@ -84,7 +84,7 @@
             uniform vec4 u_surface;
             uniform float u_colorDecay;
             uniform sampler2D u_buffer;
-            uniform sampler2D u_rules;
+            uniform sampler2D u_rules; // a 9x1 texture containing alive states in the red channel and dead states in the green channel
 
             varying vec2 v_texCoord;
 
@@ -97,6 +97,7 @@
             vec4 isAlive(int x, int y) {
                 vec4 pixel = texture2D(u_buffer, fract(v_texCoord + vec2(x, y) * onePixel));
 
+                // if cell is alive, calculate Cartesian coordinates of cell's hue for use in circular averaging.
                 return pixel.a > 0.0 ?
                        vec4(cos(TWO_PI * pixel.r), sin(TWO_PI * pixel.r), pixel.g, 1.0) :
                        vec4(0);
@@ -114,7 +115,7 @@
                        + isAlive(-1, 1);
 
                 // alive
-                if (texture2D(u_buffer, fract(v_texCoord)).a == 1.) {
+                if (texture2D(u_buffer, fract(v_texCoord)).a == 1.0) {
                     float state = texture2D(u_rules, vec2(n.a / RULES_COUNT, 0)).r;
                     gl_FragColor = texture2D(u_buffer, v_texCoord) - (1.0 - state) * firstDecay;
                 }
@@ -124,7 +125,7 @@
                     float state = texture2D(u_rules, vec2(n.a / RULES_COUNT, 0) ).g;
 
                     gl_FragColor = state > 0.0 ?
-                                   vec4(fract(1.0 + atan(n.y, n.x) / TWO_PI), n.b / n.a, 1, 1) :
+                                   vec4(fract(1.0 + atan(n.y, n.x) / TWO_PI), n.b / n.a, 1, 1) : // circular average of colors
                                    texture2D(u_buffer, v_texCoord) - DECAY;
                 }
             }
@@ -173,7 +174,7 @@
                 float currentCell = texture2D(u_buffer, fract(v_texCoord)).a;
 
                 // alive
-                if (currentCell == 1.) {
+                if (currentCell == 1.0) {
                     float state = texture2D(u_rules, vec2(n.a / RULES_COUNT, 0)).r;
                     gl_FragColor = texture2D(u_buffer, v_texCoord) - (1.0 - state) * firstDecay;
                 }

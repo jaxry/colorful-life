@@ -78,28 +78,30 @@ body {
     right: 0;
     bottom: 0;
     left: 0;
-    margin: auto;
-    height: 10em;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
     pointer-events: none;
 }
 
 #overlay h1 {
     color: #81BEF7;
-    text-align: center;
 }
 
-#controls {
-    position: absolute;
-    left: 50%;
-    width: 31em;
-    margin-left: -14em;
+#controls-container {
+    margin-left: 40px;
 }
 
-#controls span {
-    margin: 8px 0px 0px 20px;
+#controls-container span {
+    padding: 8px 12px 0px 12px;
+    float: left;
     line-height: 1.5em;
-    display: inline-block;
-    color: #FFF;
+    color: #eee;
+}
+
+#controls-container span b {
+    color: #eea;
 }
 
 .hidden {

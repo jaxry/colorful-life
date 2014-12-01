@@ -322,15 +322,12 @@ function animate() {
 
 function initCellProgram() {
 
-    var program, locBufferResolution, locColorDecay, locCellStates;
+    var program, uniforms;
 
     function createCellProgram(shaderId){
 
         var program = createProgram(gl, 'vertex-shader', shaderId);
-
-        locBufferResolution = gl.getUniformLocation(program, 'u_bufferResolution');
-        locColorDecay       = gl.getUniformLocation(program, 'u_colorDecay');
-        locCellStates       = gl.getUniformLocation(program, 'u_cellStates');
+        uniforms = getUniformLocations(gl, program, ['u_bufferResolution', 'u_colorDecay', 'u_cellStates']);
 
         // static uniforms
         gl.useProgram(program);
@@ -348,9 +345,9 @@ function initCellProgram() {
             renderTargets.swap();
 
             gl.useProgram(program);
-            gl.uniform2f(locBufferResolution, renderTargets.width, renderTargets.height);
-            gl.uniform1f(locColorDecay, params.paintColorDecay);
-            gl.uniform1i(locCellStates, params.cellStates);
+            gl.uniform2f(uniforms.u_bufferResolution, renderTargets.width, renderTargets.height);
+            gl.uniform1f(uniforms.u_colorDecay, params.paintColorDecay);
+            gl.uniform1i(uniforms.u_cellStates, params.cellStates);
             gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
         },
 
@@ -382,18 +379,10 @@ function initCellProgram() {
 
 function initMouseProgram() {
 
-    var program = createProgram(gl, 'vertex-shader', 'mouse-shader');
-
-    var locBufferResolution = gl.getUniformLocation(program, 'u_bufferResolution'),
-        locMouse            = gl.getUniformLocation(program, 'u_mouse'),
-        locBrushSize        = gl.getUniformLocation(program, 'u_brushSize'),
-        locColor            = gl.getUniformLocation(program, 'u_color'),
-        locBrushErase       = gl.getUniformLocation(program, 'u_brushErase'),
-        locBrushSolid       = gl.getUniformLocation(program, 'u_brushSolid'),
-        locBrushPixel       = gl.getUniformLocation(program, 'u_brushPixel'),
-        locColorDecay       = gl.getUniformLocation(program, 'u_colorDecay'),
-        locRandom           = gl.getUniformLocation(program, 'u_random'),
-        locSurface          = gl.getUniformLocation(program, 'u_surface');
+    var program = createProgram(gl, 'vertex-shader', 'mouse-shader'),
+        uniforms = getUniformLocations(gl, program, 
+            ['u_bufferResolution', 'u_mouse', 'u_brushSize', 'u_color', 'u_brushErase', 
+             'u_brushSolid', 'u_brushPixel', 'u_colorDecay', 'u_random', 'u_surface']);
 
     // static uniforms
     gl.useProgram(program);
@@ -407,16 +396,16 @@ function initMouseProgram() {
             renderTargets.swap();
 
             gl.useProgram(program);
-            gl.uniform2f(locBufferResolution, renderTargets.width, renderTargets.height);
-            gl.uniform2f(locMouse, params.mouseX, params.mouseY);
-            gl.uniform4f(locColor, params.paintColor.h, params.paintColor.s, params.paintColor.v, 1.0);
-            gl.uniform1i(locBrushErase, params.brushErase);
-            gl.uniform1i(locBrushSolid, params.brushSolid);
-            gl.uniform1i(locBrushPixel, params.brushPixel);
-            gl.uniform1f(locBrushSize, surface.getBrushSize());
-            gl.uniform1f(locColorDecay, params.paintColorDecay);
-            gl.uniform1f(locRandom, Math.random());
-            gl.uniform4f(locSurface, surface.top, surface.right, surface.bottom, surface.left);
+            gl.uniform2f(uniforms.u_bufferResolution, renderTargets.width, renderTargets.height);
+            gl.uniform2f(uniforms.u_mouse, params.mouseX, params.mouseY);
+            gl.uniform4f(uniforms.u_color, params.paintColor.h, params.paintColor.s, params.paintColor.v, 1.0);
+            gl.uniform1i(uniforms.u_brushErase, params.brushErase);
+            gl.uniform1i(uniforms.u_brushSolid, params.brushSolid);
+            gl.uniform1i(uniforms.u_brushPixel, params.brushPixel);
+            gl.uniform1f(uniforms.u_brushSize, surface.getBrushSize());
+            gl.uniform1f(uniforms.u_colorDecay, params.paintColorDecay);
+            gl.uniform1f(uniforms.u_random, Math.random());
+            gl.uniform4f(uniforms.u_surface, surface.top, surface.right, surface.bottom, surface.left);
 
             gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);  
         }
@@ -425,9 +414,8 @@ function initMouseProgram() {
 
 function initScreenProgram() {
 
-    var program = createProgram(gl, 'vertex-shader', 'screen-shader');
-
-    var locSurface = gl.getUniformLocation(program, 'u_surface');
+    var program = createProgram(gl, 'vertex-shader', 'screen-shader'),
+        uniforms = getUniformLocations(gl, program, ['u_surface']);
 
     // static uniforms
     gl.useProgram(program);
@@ -453,7 +441,7 @@ function initScreenProgram() {
             gl.useProgram(program);
             gl.activeTexture(gl.TEXTURE1);
             gl.bindTexture(gl.TEXTURE_2D, renderTargets.front.texture);
-            gl.uniform4f(locSurface, surface.top, surface.right, surface.bottom, surface.left);
+            gl.uniform4f(uniforms.u_surface, surface.top, surface.right, surface.bottom, surface.left);
 
             gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
         }
@@ -485,7 +473,7 @@ function Controller() {
     };
 
     this.changeCellProgram = function(value) {
-        if (value == 0) cellProgram.useLifeProgram();
+        if (value === 0) cellProgram.useLifeProgram();
         else cellProgram.useGenerationsProgram();
     };
 
@@ -560,7 +548,7 @@ function initGui() {
     }
 
     function onFamilyChange(value) {
-        if (value == 0){
+        if (value === 0){
             presets.setFamilyLife();
             iGenerations.__li.style.display = 'none';
             params.paintSaturation = 0.8;
@@ -592,8 +580,8 @@ function initGui() {
             guiRulesDead.__controllers[i].setValue(rule.dead[i + 1]);
         }
 
-        if (rule.states) {
-            params.cellStates = rule.states;
+        if (rule.cellStates) {
+            params.cellStates = rule.cellStates;
             iGenerations.updateDisplay();
         }
 
@@ -619,22 +607,36 @@ function initGui() {
     }
 }
 
-function createProgram(gl, vertexShaderID, fragmentShaderID) {
+function createProgram(gl, vertexShaderID, fragmentShaderID, params) {
 
-    var vertexShader = gl.createShader(gl.VERTEX_SHADER);
-    gl.shaderSource(vertexShader, document.getElementById(vertexShaderID).innerHTML);
-    gl.compileShader(vertexShader);
-
-    var fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
-    gl.shaderSource(fragmentShader, document.getElementById(fragmentShaderID).innerHTML);
-    gl.compileShader(fragmentShader);
+    function compileAndCheck(program, shader, source) {
+        gl.shaderSource(shader, source);
+        gl.compileShader(shader);
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+            console.log(gl.getShaderInfoLog(shader));
+        }
+        gl.attachShader(program, shader);
+    }
 
     var program = gl.createProgram();
-    gl.attachShader(program, vertexShader);
-    gl.attachShader(program, fragmentShader);
+
+    var vertexShader = gl.createShader(gl.VERTEX_SHADER);
+    compileAndCheck(program, vertexShader, document.getElementById(vertexShaderID).innerHTML);
+
+    var fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+    compileAndCheck(program, fragmentShader, document.getElementById(fragmentShaderID).innerHTML);
+
     gl.linkProgram(program);
 
     return program;
+}
+
+function getUniformLocations(gl, program, uniformNames) {
+    var uniforms = [];
+    for (var i = 0; i < uniformNames.length; i++) {
+        uniforms[uniformNames[i]] = gl.getUniformLocation(program, uniformNames[i]);
+    }
+    return uniforms;
 }
 
 })();
